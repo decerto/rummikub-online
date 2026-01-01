@@ -151,7 +151,7 @@
         <v-timeline density="compact" side="end">
           <v-timeline-item dot-color="primary" size="small">
             <div class="text-body-1">
-              <strong>Your Turn</strong> - You have <strong>60 seconds</strong> to make your moves.
+              <strong>Your Turn</strong> - You have <strong>2 minutes</strong> to make your moves.
             </div>
           </v-timeline-item>
           
