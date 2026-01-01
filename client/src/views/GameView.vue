@@ -80,8 +80,6 @@
                   chosen-class="tile-chosen"
                   drag-class="tile-dragging"
                   :move="onTableTileMove"
-                  filter=".tile-locked"
-                  :prevent-on-filter="true"
                   @start="onDragStart"
                   @change="onSetChange(setIndex)"
                 >
@@ -90,7 +88,6 @@
                       :tile="tile" 
                       :draggable="gameStore.isMyTurn" 
                       :highlighted="gameStore.highlightedTileIds.has(tile.id)"
-                      :class="{ 'tile-locked': tile.isJoker }"
                     />
                   </template>
                 </draggable>
@@ -809,22 +806,6 @@ function sendMessage(message) {
 
 .tile-set {
   flex-shrink: 0;
-}
-
-/* Jokers on table are locked (cannot be dragged to hand) */
-.tile-locked {
-  cursor: not-allowed !important;
-  position: relative;
-}
-
-.tile-locked::before {
-  content: '🔒';
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  font-size: 12px;
-  z-index: 10;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 </style>
 
