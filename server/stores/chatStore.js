@@ -123,6 +123,9 @@ export function addActionMessage(roomId, username, action, details = {}) {
     case 'passed':
       message = `${username} passed (pool empty)`;
       break;
+    case 'turn':
+      message = `▶️ ${username}'s turn`;
+      break;
     case 'won':
       message = `🎉 ${username} won the game!`;
       break;
@@ -131,4 +134,32 @@ export function addActionMessage(roomId, username, action, details = {}) {
   }
   
   return addMessage(roomId, username, message, 'action');
+}
+
+// Add action message with tile info (for personalized draw messages)
+export function addActionMessageWithTile(roomId, username, action, tile) {
+  let message = '';
+  const tileStr = formatTile(tile);
+  
+  switch (action) {
+    case 'drew':
+      message = `You drew ${tileStr}`;
+      break;
+    case 'timeout':
+      message = `You timed out, drew ${tileStr}`;
+      break;
+    default:
+      message = `${username} ${action}`;
+  }
+  
+  // Note: We don't add to history since the generic message is already added
+  // This is just for the player's personal view
+  return {
+    id: Date.now().toString() + '-personal',
+    username,
+    message,
+    type: 'action',
+    timestamp: Date.now(),
+    tile // Include tile data for potential visual rendering
+  };
 }

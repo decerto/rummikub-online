@@ -35,6 +35,18 @@ export const useGameStore = defineStore('game', () => {
   const currentSortOrder = ref(null); // 'color', 'number', or null
   const highlightedTileIds = ref(new Set()); // Track newly placed tiles for highlighting
   const highlightedHandTileIds = ref(new Set()); // Track newly drawn tiles for highlighting
+  
+  // Track tiles placed during current turn (only these can be taken back)
+  const tilesPlacedThisTurn = ref(new Set());
+  
+  // Current turn timer (visible to all players)
+  const currentTurnTimeRemaining = ref(0);
+  const currentTurnTimerInterval = ref(null);
+  
+  // Total game timer
+  const totalGameTime = ref(0);
+  const totalGameTimerInterval = ref(null);
+  const gameStartTime = ref(null);
 
   const isInGame = computed(() => !!gameId.value && !gameEnded.value);
   
@@ -58,6 +70,19 @@ export const useGameStore = defineStore('game', () => {
     poolCount.value = data.poolCount;
     rules.value = data.rules;
     isSpectator.value = data.isSpectator || false;
+    
+    // Clear tiles placed this turn
+    tilesPlacedThisTurn.value = new Set();
+    
+    // Start total game timer
+    gameStartTime.value = Date.now();
+    totalGameTime.value = 0;
+    if (totalGameTimerInterval.value) {
+      clearInterval(totalGameTimerInterval.value);
+    }
+    totalGameTimerInterval.value = setInterval(() => {
+      totalGameTime.value = Math.floor((Date.now() - gameStartTime.value) / 1000);
+    }, 1000);
     gameEnded.value = false;
     winner.value = null;
     scores.value = [];
@@ -143,6 +168,9 @@ export const useGameStore = defineStore('game', () => {
     isMyTurn.value = true;
     hasChanges.value = false;
     
+    // Clear tiles placed this turn tracking
+    tilesPlacedThisTurn.value = new Set();
+    
     // Reset local state to match server state at turn start
     localMyTiles.value = [...myTiles.value];
     localTableSets.value = tableSets.value.map(s => [...s]);
@@ -173,6 +201,7 @@ export const useGameStore = defineStore('game', () => {
     }
     isMyTurn.value = false;
     hasChanges.value = false;
+    tilesPlacedThisTurn.value = new Set();
     
     // Revert local state
     localMyTiles.value = [...myTiles.value];
@@ -194,6 +223,12 @@ export const useGameStore = defineStore('game', () => {
     
     if (turnTimer.value) {
       clearInterval(turnTimer.value);
+    }
+    if (currentTurnTimerInterval.value) {
+      clearInterval(currentTurnTimerInterval.value);
+    }
+    if (totalGameTimerInterval.value) {
+      clearInterval(totalGameTimerInterval.value);
     }
   }
 
@@ -218,10 +253,22 @@ export const useGameStore = defineStore('game', () => {
     currentSortOrder.value = null;
     highlightedTileIds.value = new Set();
     highlightedHandTileIds.value = new Set();
+    tilesPlacedThisTurn.value = new Set();
+    currentTurnTimeRemaining.value = 0;
+    totalGameTime.value = 0;
+    gameStartTime.value = null;
     
     if (turnTimer.value) {
       clearInterval(turnTimer.value);
       turnTimer.value = null;
+    }
+    if (currentTurnTimerInterval.value) {
+      clearInterval(currentTurnTimerInterval.value);
+      currentTurnTimerInterval.value = null;
+    }
+    if (totalGameTimerInterval.value) {
+      clearInterval(totalGameTimerInterval.value);
+      totalGameTimerInterval.value = null;
     }
   }
 
@@ -252,6 +299,8 @@ export const useGameStore = defineStore('game', () => {
     const tileIdx = localMyTiles.value.findIndex(t => t.id === tile.id);
     if (tileIdx !== -1) {
       localMyTiles.value.splice(tileIdx, 1);
+      // Track that this tile was placed this turn
+      tilesPlacedThisTurn.value.add(tile.id);
     }
     
     // Add to table
@@ -263,6 +312,12 @@ export const useGameStore = defineStore('game', () => {
     }
     
     hasChanges.value = true;
+  }
+
+  // Check if a tile can be taken back from the table
+  function canTakeTileBack(tile) {
+    // Only tiles placed THIS TURN can be taken back
+    return tilesPlacedThisTurn.value.has(tile.id);
   }
 
   function moveTileToRack(tile, setIndex) {
@@ -465,6 +520,25 @@ export const useGameStore = defineStore('game', () => {
     });
   }
 
+  // Update the current turn timer (called when receiving turn-timer-sync)
+  function updateCurrentTurnTimer(timeRemaining) {
+    currentTurnTimeRemaining.value = timeRemaining;
+    
+    // Clear existing interval
+    if (currentTurnTimerInterval.value) {
+      clearInterval(currentTurnTimerInterval.value);
+    }
+    
+    // Start countdown for current turn (visible to all players)
+    currentTurnTimerInterval.value = setInterval(() => {
+      if (currentTurnTimeRemaining.value > 0) {
+        currentTurnTimeRemaining.value--;
+      } else {
+        clearInterval(currentTurnTimerInterval.value);
+      }
+    }, 1000);
+  }
+
   return {
     gameId,
     players,
@@ -477,6 +551,8 @@ export const useGameStore = defineStore('game', () => {
     chatMessages,
     turnTimeLimit,
     turnTimeRemaining,
+    currentTurnTimeRemaining,
+    totalGameTime,
     isMyTurn,
     gameEnded,
     winner,
@@ -488,6 +564,7 @@ export const useGameStore = defineStore('game', () => {
     hasChanges,
     highlightedTileIds,
     highlightedHandTileIds,
+    tilesPlacedThisTurn,
     isInGame,
     currentPlayer,
     myPlayer,
@@ -503,11 +580,13 @@ export const useGameStore = defineStore('game', () => {
     addChatMessage,
     moveTileToTable,
     moveTileToRack,
+    canTakeTileBack,
     updateLocalTableSets,
     updateLocalMyTiles,
     revertChanges,
     sortTilesByColor,
     sortTilesByNumber,
+    updateCurrentTurnTimer,
     endTurn,
     drawTile,
     handleDisconnectedPlayer,

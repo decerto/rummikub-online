@@ -181,10 +181,27 @@ export function registerGameHandlers(io, socket) {
       return callback({ success: false, error: 'Could not draw tile' });
     }
 
-    // Log the draw action
-    const actionMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'drew');
-    console.log('[Game] Broadcasting draw action to room:', `game:${game.id}`, actionMsg);
-    io.to(`game:${game.id}`).emit('chat-broadcast', actionMsg);
+    // Log the draw action - send personalized message to the player, generic to others
+    const drawnTile = result.tile;
+    
+    // Create message for the player who drew (shows the tile)
+    const playerMsg = chatStore.addActionMessageWithTile(
+      `game:${game.id}`, 
+      currentPlayer.username, 
+      'drew', 
+      drawnTile
+    );
+    
+    // Create message for everyone else (generic)
+    const othersMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'drew');
+    
+    console.log('[Game] Broadcasting draw action to room:', `game:${game.id}`);
+    
+    // Send personalized message to the player
+    io.to(socket.id).emit('chat-broadcast', playerMsg);
+    
+    // Send generic message to everyone else in the room
+    socket.to(`game:${game.id}`).emit('chat-broadcast', othersMsg);
 
     callback({ success: true, tile: result.tile });
 
@@ -652,17 +669,32 @@ function advanceToNextTurn(io, game) {
 function startTurnTimer(io, game) {
   const timerMs = game.rules.turnTimerSeconds * 1000;
   
+  // Store the turn start time for syncing
+  game.turnStartTime = Date.now();
+  
   game.turnTimer = setTimeout(() => {
     handleTurnTimeout(io, game);
   }, timerMs);
 
-  // Notify current player
+  // Notify current player their turn has started
   const currentPlayer = gameStore.getCurrentPlayer(game);
+  
+  // Announce whose turn it is in chat
+  const turnMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'turn');
+  io.to(`game:${game.id}`).emit('chat-broadcast', turnMsg);
+  
   if (!currentPlayer.isBot) {
     io.to(currentPlayer.socketId).emit('turn-start', {
       timeLimit: game.rules.turnTimerSeconds
     });
   }
+  
+  // Broadcast turn timer to ALL players (so everyone can see the countdown)
+  io.to(`game:${game.id}`).emit('turn-timer-sync', {
+    currentPlayerIndex: game.currentPlayerIndex,
+    timeRemaining: game.rules.turnTimerSeconds,
+    isBot: currentPlayer.isBot
+  });
 }
 
 function handleTurnTimeout(io, game) {
@@ -673,11 +705,30 @@ function handleTurnTimeout(io, game) {
   console.log(`[Timeout] ${currentPlayer.username} timed out`);
   
   if (game.tilePool.length > 0) {
-    gameStore.drawTile(game.id, currentPlayer.socketId);
+    const drawResult = gameStore.drawTile(game.id, currentPlayer.socketId);
     
-    // Log the timeout action
-    const actionMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'timeout');
-    io.to(`game:${game.id}`).emit('chat-broadcast', actionMsg);
+    // Log the timeout action - personalized for the player, generic for others
+    if (!currentPlayer.isBot && drawResult) {
+      // Send personalized message to the player (shows the tile)
+      const playerMsg = chatStore.addActionMessageWithTile(
+        `game:${game.id}`, 
+        currentPlayer.username, 
+        'timeout', 
+        drawResult.tile
+      );
+      io.to(currentPlayer.socketId).emit('chat-broadcast', playerMsg);
+      
+      // Send generic message to everyone else
+      const othersMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'timeout');
+      const playerSocket = io.sockets.sockets.get(currentPlayer.socketId);
+      if (playerSocket) {
+        playerSocket.to(`game:${game.id}`).emit('chat-broadcast', othersMsg);
+      }
+    } else {
+      // Bot or no draw result - just send generic message to everyone
+      const actionMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'timeout');
+      io.to(`game:${game.id}`).emit('chat-broadcast', actionMsg);
+    }
   } else {
     // Log that they passed due to empty pool
     const actionMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'passed');
@@ -694,6 +745,10 @@ function handleTurnTimeout(io, game) {
 function executeBotTurnWithDelay(io, game) {
   const currentPlayer = gameStore.getCurrentPlayer(game);
   console.log(`[Bot] Executing bot turn for ${currentPlayer.username} in 1.5-3s`);
+  
+  // Announce bot's turn in chat
+  const turnMsg = chatStore.addActionMessage(`game:${game.id}`, currentPlayer.username, 'turn');
+  io.to(`game:${game.id}`).emit('chat-broadcast', turnMsg);
   
   // Add realistic delay for bot
   setTimeout(() => {

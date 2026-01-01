@@ -8,8 +8,20 @@
     ]"
   >
     <template v-if="tile.isJoker">
-      <div class="tile-joker">
-        <v-icon size="24">mdi-star-four-points</v-icon>
+      <div class="joker-container">
+        <div class="joker-hat">
+          <div class="hat-point left"></div>
+          <div class="hat-point center"></div>
+          <div class="hat-point right"></div>
+        </div>
+        <div class="joker-face">
+          <div class="joker-eyes">
+            <div class="joker-eye left"></div>
+            <div class="joker-eye right"></div>
+          </div>
+          <div class="joker-smile"></div>
+        </div>
+        <div class="joker-label">JOKER</div>
       </div>
     </template>
     <template v-else>
@@ -113,18 +125,127 @@ defineProps({
   text-shadow: 0 1px 2px rgba(249, 115, 22, 0.3);
 }
 
+/* Joker tile special styling */
 .tile-joker {
-  background: linear-gradient(135deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #8b5cf6);
+  background: linear-gradient(165deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%);
+  border: 2px solid #f59e0b;
+}
+
+.joker-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* Jester hat */
+.joker-hat {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  margin-bottom: 2px;
+  margin-top: -2px;
+}
+
+.hat-point {
+  width: 8px;
+  height: 12px;
+  border-radius: 50% 50% 0 0;
+  position: relative;
+}
+
+.hat-point::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.hat-point.left {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  transform: rotate(-20deg);
+  margin-right: -2px;
+}
+.hat-point.left::after { background: #fbbf24; }
+
+.hat-point.center {
+  background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
+  height: 14px;
+  width: 10px;
+  z-index: 1;
+}
+.hat-point.center::after { background: #fbbf24; width: 6px; height: 6px; }
+
+.hat-point.right {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  transform: rotate(20deg);
+  margin-left: -2px;
+}
+.hat-point.right::after { background: #fbbf24; }
+
+/* Joker face */
+.joker-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.joker-eyes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.joker-eye {
+  width: 6px;
+  height: 6px;
+  background: #1e1e2e;
+  border-radius: 50%;
+  position: relative;
+}
+
+.joker-eye::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+}
+
+.joker-smile {
+  width: 14px;
+  height: 7px;
+  border: 2px solid #dc2626;
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  background: #fecaca;
+}
+
+.joker-label {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background: linear-gradient(90deg, #ef4444, #f97316, #8b5cf6, #3b82f6);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: rainbow 3s ease infinite;
-  background-size: 400% 400%;
+  margin-top: 1px;
 }
 
-@keyframes rainbow {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+.tile-joker .tile-shine {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
 .tile-number {
@@ -152,15 +273,7 @@ defineProps({
 .tile-blue::after { background: #3b82f6; box-shadow: 0 0 6px rgba(59, 130, 246, 0.5); }
 .tile-orange::after { background: #f97316; box-shadow: 0 0 6px rgba(249, 115, 22, 0.5); }
 .tile-joker::after { 
-  background: linear-gradient(135deg, #ef4444, #3b82f6); 
-  width: 8px;
-  height: 8px;
-  animation: pulse 2s ease infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
-  50% { transform: translateX(-50%) scale(1.2); opacity: 0.8; }
+  display: none; /* Joker has its own design, no need for dot */
 }
 
 /* Highlighted tile animation for newly placed tiles */

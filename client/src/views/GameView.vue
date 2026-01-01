@@ -3,52 +3,70 @@
     <v-row no-gutters class="flex-grow-1 flex-nowrap" style="min-height: 0;">
       <!-- Main Game Area -->
       <v-col cols="12" :md="showChat ? 9 : 12" class="d-flex flex-column game-main-column">
-        <!-- Top Bar: Players Info & Timer -->
-        <v-card color="surface" class="mb-2 pa-2">
-          <div class="d-flex align-center justify-space-between flex-wrap ga-2">
-            <!-- Players -->
-            <div class="d-flex align-center ga-2 flex-wrap">
-              <template v-for="(player, index) in gameStore.players" :key="player.socketId">
-                <v-chip
-                  :color="index === gameStore.currentPlayerIndex ? 'primary' : 'surface-variant'"
-                  :variant="index === gameStore.currentPlayerIndex ? 'elevated' : 'flat'"
-                  :class="['player-chip', { 'current-player': index === gameStore.currentPlayerIndex }]"
+        <!-- Top Bar: Redesigned Game Info -->
+        <v-card color="surface" class="mb-2 top-bar">
+          <div class="top-bar-content">
+            <!-- Left: Turn Order / Players -->
+            <div class="players-section">
+              <div class="section-label">
+                <v-icon size="x-small">mdi-account-group</v-icon>
+                Turn Order
+              </div>
+              <div class="player-list">
+                <div
+                  v-for="(player, index) in gameStore.players"
+                  :key="player.socketId"
+                  class="player-item"
+                  :class="{ 
+                    'active': index === gameStore.currentPlayerIndex,
+                    'is-me': player.socketId === gameStore.myPlayer?.socketId
+                  }"
                 >
-                  <v-avatar start :color="player.isBot ? 'secondary' : 'accent'" size="24">
-                    <v-icon v-if="player.isBot" size="small" color="white">mdi-robot</v-icon>
-                    <span v-else class="text-caption font-weight-bold">{{ player.username.charAt(0) }}</span>
-                  </v-avatar>
-                  <span class="player-name">{{ player.username }}</span>
-                  <v-chip size="x-small" class="ml-1" color="info">
-                    {{ player.tileCount }}
-                  </v-chip>
-                  <v-icon v-if="player.isDisconnected" size="small" color="warning" class="ml-1">
-                    mdi-wifi-off
-                  </v-icon>
-                </v-chip>
-              </template>
+                  <div class="player-indicator" :class="{ 'active': index === gameStore.currentPlayerIndex }">
+                    {{ index + 1 }}
+                  </div>
+                  <div class="player-info">
+                    <div class="player-name-row">
+                      <v-icon v-if="player.isBot" size="x-small" class="mr-1">mdi-robot</v-icon>
+                      <span class="player-name">{{ player.username }}</span>
+                      <span v-if="player.socketId === gameStore.myPlayer?.socketId" class="you-badge">(you)</span>
+                      <v-icon v-if="player.isDisconnected" size="x-small" color="warning" class="ml-1">mdi-wifi-off</v-icon>
+                    </div>
+                    <div class="tile-count">{{ player.tileCount }} tiles</div>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            <!-- Timer & Pool -->
-            <div class="d-flex align-center ga-3">
-              <v-chip color="info">
-                <v-icon start>mdi-cards</v-icon>
-                Pool: {{ gameStore.poolCount }}
-              </v-chip>
+            <!-- Center: Timers -->
+            <div class="timers-section">
+              <!-- Turn Timer (visible to all) -->
+              <div class="timer-box turn-timer" :class="{ 'urgent': gameStore.currentTurnTimeRemaining <= 10 }">
+                <div class="timer-label">Turn</div>
+                <div class="timer-value">{{ formatTime(gameStore.currentTurnTimeRemaining) }}</div>
+              </div>
               
-              <v-chip
-                v-if="gameStore.isMyTurn"
-                :color="gameStore.turnTimeRemaining <= 10 ? 'error' : 'warning'"
-                class="timer-chip"
-              >
-                <v-icon start>mdi-timer</v-icon>
-                {{ formatTime(gameStore.turnTimeRemaining) }}
-              </v-chip>
+              <!-- Total Game Timer -->
+              <div class="timer-box game-timer">
+                <div class="timer-label">Game</div>
+                <div class="timer-value">{{ formatTime(gameStore.totalGameTime) }}</div>
+              </div>
+            </div>
+            
+            <!-- Right: Pool & Actions -->
+            <div class="actions-section">
+              <div class="pool-display">
+                <v-icon size="small">mdi-cards</v-icon>
+                <span class="pool-count">{{ gameStore.poolCount }}</span>
+                <span class="pool-label">tiles</span>
+              </div>
               
               <v-btn
-                icon="mdi-chat"
+                :icon="showChat ? 'mdi-chat' : 'mdi-chat-outline'"
                 variant="text"
+                :color="showChat ? 'primary' : 'default'"
                 @click="showChat = !showChat"
+                class="chat-toggle"
               />
             </div>
           </div>
@@ -122,65 +140,79 @@
         
         <!-- Player Rack -->
         <v-card color="surface" class="pa-4 player-rack">
-          <div class="d-flex align-center justify-space-between mb-2">
-            <div class="text-subtitle-2">
+          <div class="rack-header">
+            <div class="rack-title">
               <v-icon size="small" class="mr-1">mdi-hand-back-left</v-icon>
               Your Tiles ({{ localMyTiles.length }})
             </div>
             
-            <div class="d-flex ga-2">
-              <!-- Sort buttons -->
-              <v-btn-group density="compact" variant="outlined" color="secondary">
+            <div class="rack-controls">
+              <!-- Sort buttons - improved styling -->
+              <div class="sort-buttons">
                 <v-btn
                   size="small"
+                  variant="tonal"
+                  color="secondary"
                   @click="gameStore.sortTilesByColor()"
                   title="Sort by color"
+                  class="sort-btn"
                 >
-                  <v-icon>mdi-palette</v-icon>
+                  <v-icon start size="small">mdi-palette</v-icon>
+                  Color
                 </v-btn>
                 <v-btn
                   size="small"
+                  variant="tonal"
+                  color="secondary"
                   @click="gameStore.sortTilesByNumber()"
                   title="Sort by number"
+                  class="sort-btn"
                 >
-                  <v-icon>mdi-sort-numeric-ascending</v-icon>
+                  <v-icon start size="small">mdi-sort-numeric-ascending</v-icon>
+                  Number
                 </v-btn>
-              </v-btn-group>
+              </div>
               
-              <v-btn
-                v-if="gameStore.isMyTurn && gameStore.hasChanges"
-                color="warning"
-                size="small"
-                variant="outlined"
-                @click="revertChanges"
-              >
-                <v-icon left>mdi-undo</v-icon>
-                Revert
-              </v-btn>
-              
-              <v-btn
-                v-if="gameStore.isMyTurn && !gameStore.hasChanges"
-                color="info"
-                size="small"
-                @click="drawTile"
-                :disabled="gameStore.poolCount === 0"
-                :loading="isDrawing"
-              >
-                <v-icon left>mdi-download</v-icon>
-                Draw Tile
-              </v-btn>
-              
-              <v-btn
-                v-if="gameStore.isMyTurn"
-                color="success"
-                size="small"
-                @click="endTurn"
-                :disabled="!gameStore.hasChanges && gameStore.poolCount > 0"
-                :loading="isEndingTurn"
-              >
-                <v-icon left>mdi-check</v-icon>
-                End Turn
-              </v-btn>
+              <!-- Action buttons -->
+              <div class="action-buttons">
+                <v-btn
+                  v-if="gameStore.isMyTurn && gameStore.hasChanges"
+                  color="warning"
+                  size="small"
+                  variant="outlined"
+                  @click="revertChanges"
+                  class="action-btn"
+                >
+                  <v-icon start size="small">mdi-undo</v-icon>
+                  Revert
+                </v-btn>
+                
+                <v-btn
+                  v-if="gameStore.isMyTurn && !gameStore.hasChanges"
+                  color="info"
+                  size="small"
+                  @click="drawTile"
+                  :disabled="gameStore.poolCount === 0"
+                  :loading="isDrawing"
+                  class="action-btn"
+                >
+                  <v-icon start size="small">mdi-download</v-icon>
+                  Draw
+                </v-btn>
+                
+                <v-btn
+                  v-if="gameStore.isMyTurn"
+                  color="success"
+                  size="small"
+                  @click="endTurn"
+                  :disabled="!gameStore.hasChanges && gameStore.poolCount > 0"
+                  :loading="isEndingTurn"
+                  class="action-btn"
+                >
+                  <v-icon start size="small">mdi-check</v-icon>
+                  End Turn
+                </v-btn>
+              </div>
             </div>
           </div>
           
@@ -584,15 +616,24 @@ function onDragStart() {
   saveState();
 }
 
-// Prevent jokers on the table from being moved to the player's rack
+// Restrict which tiles can be taken back from the table
 function onTableTileMove(evt) {
-  // If the tile being moved is a joker and it's going to the rack, prevent it
   const draggedTile = evt.draggedContext?.element;
   const toRack = evt.to?.classList?.contains('rack-tiles');
   
-  if (draggedTile?.isJoker && toRack) {
-    showInvalidMove('Jokers on the table cannot be taken back to your hand');
-    return false;
+  // If moving to rack (hand), check restrictions
+  if (toRack && draggedTile) {
+    // Jokers can never be taken back
+    if (draggedTile.isJoker) {
+      showInvalidMove('Jokers on the table cannot be taken back to your hand');
+      return false;
+    }
+    
+    // Only tiles placed THIS TURN can be taken back
+    if (!gameStore.canTakeTileBack(draggedTile)) {
+      showInvalidMove('Only tiles you placed this turn can be taken back. Use Revert to undo all changes.');
+      return false;
+    }
   }
   return true;
 }
@@ -653,6 +694,267 @@ function sendMessage(message) {
 </script>
 
 <style scoped>
+/* ========== TOP BAR STYLES ========== */
+.top-bar {
+  background: linear-gradient(180deg, rgba(26, 26, 36, 0.95) 0%, rgba(18, 18, 26, 0.98) 100%) !important;
+  border: 1px solid rgba(124, 58, 237, 0.2) !important;
+  padding: 12px 16px !important;
+}
+
+.top-bar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.players-section {
+  flex: 1;
+  min-width: 200px;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(226, 232, 240, 0.5);
+  margin-bottom: 8px;
+}
+
+.player-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.2s ease;
+}
+
+.player-item.active {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: rgba(124, 58, 237, 0.4);
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
+}
+
+.player-item.is-me {
+  border-color: rgba(20, 184, 166, 0.3);
+}
+
+.player-item.is-me.active {
+  border-color: rgba(124, 58, 237, 0.4);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(20, 184, 166, 0.1));
+}
+
+.player-indicator {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(226, 232, 240, 0.6);
+}
+
+.player-indicator.active {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: white;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 58, 237, 0); }
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.player-name-row {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.you-badge {
+  font-size: 10px;
+  color: rgba(20, 184, 166, 0.8);
+  margin-left: 4px;
+}
+
+.tile-count {
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.5);
+}
+
+.timers-section {
+  display: flex;
+  gap: 12px;
+}
+
+.timer-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 80px;
+}
+
+.timer-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(226, 232, 240, 0.5);
+  margin-bottom: 2px;
+}
+
+.timer-value {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #e2e8f0;
+}
+
+.turn-timer {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.turn-timer .timer-value {
+  color: #f59e0b;
+}
+
+.turn-timer.urgent {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  animation: urgent-pulse 0.5s ease-in-out infinite;
+}
+
+.turn-timer.urgent .timer-value {
+  color: #ef4444;
+}
+
+@keyframes urgent-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.game-timer {
+  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.game-timer .timer-value {
+  color: #818cf8;
+}
+
+.actions-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pool-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 10px;
+  color: #38bdf8;
+}
+
+.pool-count {
+  font-size: 18px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.pool-label {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.chat-toggle {
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.chat-toggle:hover {
+  opacity: 1;
+}
+
+/* ========== RACK STYLES ========== */
+.rack-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.rack-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+}
+
+.rack-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sort-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.sort-btn {
+  font-size: 12px !important;
+  padding: 0 12px !important;
+  height: 32px !important;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  font-size: 12px !important;
+  height: 32px !important;
+}
+
+/* ========== EXISTING STYLES ========== */
 .game-container {
   height: 100vh;
   max-height: 100vh;

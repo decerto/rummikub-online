@@ -110,6 +110,11 @@ export function initSocket() {
     gameStore.startTurn(data.timeLimit);
   });
 
+  socket.on('turn-timer-sync', (data) => {
+    const gameStore = useGameStore();
+    gameStore.updateCurrentTurnTimer(data.timeRemaining);
+  });
+
   socket.on('turn-timeout', (data) => {
     const gameStore = useGameStore();
     const notificationStore = useNotificationStore();

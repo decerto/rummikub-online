@@ -38,6 +38,9 @@
         <v-icon>mdi-chat-outline</v-icon>
         <div class="text-caption">No messages yet</div>
       </div>
+      
+      <!-- Scroll anchor for auto-scroll -->
+      <div ref="messagesEndRef" class="scroll-anchor"></div>
     </v-card-text>
     
     <v-divider />
@@ -69,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted } from 'vue';
+import { ref, watch, nextTick, onMounted, onUpdated } from 'vue';
 
 const props = defineProps({
   messages: {
@@ -86,22 +89,36 @@ const emit = defineEmits(['send']);
 
 const newMessage = ref('');
 const messagesContainer = ref(null);
+const messagesEndRef = ref(null);
 
 // Auto-scroll to bottom when new messages arrive
-watch(() => props.messages.length, async () => {
+watch(() => props.messages, async () => {
   await nextTick();
   scrollToBottom();
-});
+}, { deep: true });
 
-// Also scroll on mount
+// Also scroll on mount and after each update
 onMounted(() => {
   scrollToBottom();
 });
 
+onUpdated(() => {
+  scrollToBottom();
+});
+
 function scrollToBottom() {
+  // Use the end marker element for more reliable scrolling
+  if (messagesEndRef.value) {
+    messagesEndRef.value.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    return;
+  }
+  
+  // Fallback to container scroll
   if (messagesContainer.value) {
     const el = messagesContainer.value.$el || messagesContainer.value;
-    el.scrollTop = el.scrollHeight;
+    if (el && el.scrollHeight) {
+      el.scrollTop = el.scrollHeight;
+    }
   }
 }
 
@@ -190,5 +207,10 @@ function getSystemMessageColor(type) {
 
 .message-action {
   padding: 4px 0;
+}
+
+.scroll-anchor {
+  height: 1px;
+  width: 100%;
 }
 </style>
