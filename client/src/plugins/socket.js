@@ -25,16 +25,31 @@ export function initSocket() {
   socket.on('connect', () => {
     console.log('Connected to server:', socket.id);
     
-    // Try to reconnect with existing username
+    // Try to reconnect with existing username if we have one
     const userStore = useUserStore();
-    if (userStore.username && !userStore.isRegistered) {
-      socket.emit('reconnect-user', userStore.username, (response) => {
+    const gameStore = useGameStore();
+    
+    if (userStore.username) {
+      console.log('Attempting auto-reconnect for user:', userStore.username);
+      
+      // Always try to re-register/reconnect when socket reconnects
+      socket.emit('register-username', userStore.username, (response) => {
         if (response.success) {
+          console.log('Auto-reconnected:', response);
           userStore.setUser(response.user);
-          if (response.user.lobbyId) {
+          
+          // If we were in a game, the server will send game-state-update
+          if (response.reconnected && response.user.gameId) {
+            console.log('Reconnected to game:', response.user.gameId);
+            gameStore.setGameId(response.user.gameId);
+          } else if (response.reconnected && response.user.lobbyId) {
             const lobbyStore = useLobbyStore();
             lobbyStore.rejoinLobby(response.user.lobbyId);
           }
+        } else {
+          console.log('Auto-reconnect failed:', response.error);
+          // Username might be taken by someone else now, clear our state
+          userStore.clearUser();
         }
       });
     }

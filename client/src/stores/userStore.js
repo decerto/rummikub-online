@@ -2,7 +2,10 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 
 export const useUserStore = defineStore('user', () => {
-  const username = ref('');
+  // Try to restore username from sessionStorage
+  const storedUsername = sessionStorage.getItem('rummikub-username') || '';
+  
+  const username = ref(storedUsername);
   const isRegistered = ref(false);
   const onlineUsers = ref([]);
 
@@ -11,11 +14,14 @@ export const useUserStore = defineStore('user', () => {
   function setUser(user) {
     username.value = user.username;
     isRegistered.value = true;
+    // Persist username for reconnection
+    sessionStorage.setItem('rummikub-username', user.username);
   }
 
   function clearUser() {
     username.value = '';
     isRegistered.value = false;
+    sessionStorage.removeItem('rummikub-username');
   }
 
   function setOnlineUsers(users) {

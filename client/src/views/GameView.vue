@@ -471,13 +471,9 @@ function onSetChange(setIndex) {
     return;
   }
   
-  console.log('[onSetChange] Before sort:', set.map(t => t.isJoker ? 'JOKER' : `${t.color}${t.number}`));
-  
   // Auto-sort runs FIRST (same color tiles should be sorted by number)
   set = autoSortSet(set);
   sets[setIndex] = set;
-  
-  console.log('[onSetChange] After sort:', set.map(t => t.isJoker ? 'JOKER' : `${t.color}${t.number}`));
   
   // Update the store immediately with sorted version
   gameStore.updateLocalTableSets(sets);
