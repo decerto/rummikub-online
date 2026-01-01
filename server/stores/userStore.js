@@ -37,8 +37,33 @@ export function getUserByUsername(username) {
   return socketId ? users.get(socketId) : null;
 }
 
+// Grace period for reconnection (30 seconds)
+const RECONNECT_GRACE_PERIOD = 30000;
+
 export function isUsernameTaken(username) {
-  return usernameToSocketId.has(username.toLowerCase());
+  const socketId = usernameToSocketId.get(username.toLowerCase());
+  if (!socketId) return false;
+  
+  const user = users.get(socketId);
+  if (!user) return false;
+  
+  // If user is disconnected, username is available for reconnection
+  if (user.disconnectedAt) {
+    return false;
+  }
+  
+  return true;
+}
+
+export function getDisconnectedUser(username) {
+  const socketId = usernameToSocketId.get(username.toLowerCase());
+  if (!socketId) return null;
+  
+  const user = users.get(socketId);
+  if (user && user.disconnectedAt) {
+    return user;
+  }
+  return null;
 }
 
 export function updateUser(socketId, updates) {
@@ -89,3 +114,31 @@ export function transferUser(oldSocketId, newSocketId) {
   }
   return null;
 }
+
+// Cleanup users who have been disconnected for more than 5 minutes
+const CLEANUP_INTERVAL = 60000; // Check every minute
+const MAX_DISCONNECT_TIME = 5 * 60 * 1000; // 5 minutes
+
+export function cleanupDisconnectedUsers() {
+  const now = Date.now();
+  const usersToRemove = [];
+  
+  for (const [socketId, user] of users) {
+    if (user.disconnectedAt && (now - user.disconnectedAt) > MAX_DISCONNECT_TIME) {
+      // Only cleanup users not in an active game
+      if (!user.gameId) {
+        usersToRemove.push(socketId);
+      }
+    }
+  }
+  
+  for (const socketId of usersToRemove) {
+    console.log(`Cleaning up disconnected user: ${users.get(socketId)?.username}`);
+    removeUser(socketId);
+  }
+  
+  return usersToRemove.length;
+}
+
+// Start cleanup interval
+setInterval(cleanupDisconnectedUsers, CLEANUP_INTERVAL);

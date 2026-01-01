@@ -89,19 +89,31 @@ export class EasyStrategy {
         const result = isValidSet(set);
         
         if (result.type === 'run') {
-          // Try to extend runs
+          // For runs, we need to understand the POSITION-based numbers
           const regularTiles = set.filter(t => !t.isJoker);
           if (regularTiles.length === 0) continue;
           
           const color = regularTiles[0].color;
-          const numbers = regularTiles.map(t => t.number).sort((a, b) => a - b);
-          const minNum = Math.min(...numbers);
-          const maxNum = Math.max(...numbers);
+          
+          // Find first anchor to determine start number
+          let anchorPos = -1;
+          let anchorNum = 0;
+          for (let j = 0; j < set.length; j++) {
+            if (!set[j].isJoker) {
+              anchorPos = j;
+              anchorNum = set[j].number;
+              break;
+            }
+          }
+          
+          const startNum = anchorNum - anchorPos;
+          const endNum = startNum + set.length - 1;
           
           // Try adding to start
-          if (minNum > 1) {
+          const numToAddStart = startNum - 1;
+          if (numToAddStart >= 1) {
             const tileToAddStart = remainingTiles.find(t => 
-              !t.isJoker && t.color === color && t.number === minNum - 1
+              !t.isJoker && t.color === color && t.number === numToAddStart
             );
             
             if (tileToAddStart) {
@@ -113,9 +125,10 @@ export class EasyStrategy {
           }
 
           // Try adding to end
-          if (maxNum < 13) {
+          const numToAddEnd = endNum + 1;
+          if (numToAddEnd <= 13) {
             const tileToAddEnd = remainingTiles.find(t => 
-              !t.isJoker && t.color === color && t.number === maxNum + 1
+              !t.isJoker && t.color === color && t.number === numToAddEnd
             );
             
             if (tileToAddEnd) {

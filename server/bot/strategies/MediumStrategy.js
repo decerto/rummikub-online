@@ -248,34 +248,61 @@ export class MediumStrategy {
       const result = isValidSet(set);
       
       if (result.type === 'run') {
-        // Try to extend runs
-        const color = set.find(t => !t.isJoker)?.color;
-        const numbers = set.filter(t => !t.isJoker).map(t => t.number).sort((a, b) => a - b);
+        // For runs, we need to understand the POSITION-based numbers
+        // Find an anchor tile to determine the sequence
+        const regularTiles = set.filter(t => !t.isJoker);
+        if (regularTiles.length === 0) continue;
+        
+        const color = regularTiles[0].color;
+        
+        // Find first anchor to determine start number
+        let anchorPos = -1;
+        let anchorNum = 0;
+        for (let j = 0; j < set.length; j++) {
+          if (!set[j].isJoker) {
+            anchorPos = j;
+            anchorNum = set[j].number;
+            break;
+          }
+        }
+        
+        const startNum = anchorNum - anchorPos;
+        const endNum = startNum + set.length - 1;
+        
+        // Collect all numbers currently in the run (including joker positions)
+        const numbersInRun = new Set();
+        for (let j = 0; j < set.length; j++) {
+          numbersInRun.add(startNum + j);
+        }
         
         // Try adding to start
-        const minNum = Math.min(...numbers);
-        const tileToAddStart = remainingTiles.find(t => 
-          !t.isJoker && t.color === color && t.number === minNum - 1
-        );
-        
-        if (tileToAddStart && minNum - 1 >= 1) {
-          set.unshift(tileToAddStart);
-          const idx = remainingTiles.findIndex(t => t.id === tileToAddStart.id);
-          remainingTiles.splice(idx, 1);
-          tilesPlayed++;
+        const numToAddStart = startNum - 1;
+        if (numToAddStart >= 1 && !numbersInRun.has(numToAddStart)) {
+          const tileToAddStart = remainingTiles.find(t => 
+            !t.isJoker && t.color === color && t.number === numToAddStart
+          );
+          
+          if (tileToAddStart) {
+            set.unshift(tileToAddStart);
+            const idx = remainingTiles.findIndex(t => t.id === tileToAddStart.id);
+            remainingTiles.splice(idx, 1);
+            tilesPlayed++;
+          }
         }
 
         // Try adding to end
-        const maxNum = Math.max(...numbers);
-        const tileToAddEnd = remainingTiles.find(t => 
-          !t.isJoker && t.color === color && t.number === maxNum + 1
-        );
-        
-        if (tileToAddEnd && maxNum + 1 <= 13) {
-          set.push(tileToAddEnd);
-          const idx = remainingTiles.findIndex(t => t.id === tileToAddEnd.id);
-          remainingTiles.splice(idx, 1);
-          tilesPlayed++;
+        const numToAddEnd = endNum + 1;
+        if (numToAddEnd <= 13 && !numbersInRun.has(numToAddEnd)) {
+          const tileToAddEnd = remainingTiles.find(t => 
+            !t.isJoker && t.color === color && t.number === numToAddEnd
+          );
+          
+          if (tileToAddEnd) {
+            set.push(tileToAddEnd);
+            const idx = remainingTiles.findIndex(t => t.id === tileToAddEnd.id);
+            remainingTiles.splice(idx, 1);
+            tilesPlayed++;
+          }
         }
       } else if (result.type === 'group' && set.length < 4) {
         // Try to extend groups

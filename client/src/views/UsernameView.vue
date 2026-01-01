@@ -66,9 +66,11 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { getSocket } from '@/plugins/socket';
 import { useUserStore } from '@/stores/userStore';
+import { useGameStore } from '@/stores/gameStore';
 
 const router = useRouter();
 const userStore = useUserStore();
+const gameStore = useGameStore();
 
 const username = ref('');
 const errorMessage = ref('');
@@ -93,6 +95,22 @@ async function handleSubmit() {
     
     if (response.success) {
       userStore.setUser(response.user);
+      
+      // Check if this was a reconnection to an active game/lobby
+      if (response.reconnected) {
+        if (response.user.gameId) {
+          // Set gameId so route guard passes, then navigate
+          // The server will send game-state-update via handlePlayerReconnect
+          gameStore.setGameId(response.user.gameId);
+          router.push({ name: 'Game' });
+          return;
+        } else if (response.user.lobbyId) {
+          // Reconnect to lobby
+          router.push({ name: 'Lobby', params: { id: response.user.lobbyId } });
+          return;
+        }
+      }
+      
       router.push({ name: 'LobbyBrowser' });
     } else {
       errorMessage.value = response.error;

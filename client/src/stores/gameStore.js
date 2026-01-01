@@ -34,6 +34,7 @@ export const useGameStore = defineStore('game', () => {
   const hasChanges = ref(false);
   const currentSortOrder = ref(null); // 'color', 'number', or null
   const highlightedTileIds = ref(new Set()); // Track newly placed tiles for highlighting
+  const highlightedHandTileIds = ref(new Set()); // Track newly drawn tiles for highlighting
 
   const isInGame = computed(() => !!gameId.value && !gameEnded.value);
   
@@ -86,6 +87,19 @@ export const useGameStore = defineStore('game', () => {
     players.value = state.players;
     
     if (!isSpectator.value) {
+      // Track new tiles added to hand for highlighting (drawn tiles)
+      const previousHandTileIds = new Set(myTiles.value.map(t => t.id));
+      const newHandTileIds = new Set(state.yourTiles.map(t => t.id));
+      const newlyDrawnIds = [...newHandTileIds].filter(id => !previousHandTileIds.has(id));
+      
+      if (newlyDrawnIds.length > 0) {
+        // Highlight newly drawn tiles for 3 seconds
+        newlyDrawnIds.forEach(id => highlightedHandTileIds.value.add(id));
+        setTimeout(() => {
+          newlyDrawnIds.forEach(id => highlightedHandTileIds.value.delete(id));
+        }, 3000);
+      }
+      
       myTiles.value = state.yourTiles;
       // Only reset local tiles if not during our turn or no changes
       if (!isMyTurn.value || !hasChanges.value) {
@@ -203,11 +217,18 @@ export const useGameStore = defineStore('game', () => {
     isMyTurn.value = false;
     currentSortOrder.value = null;
     highlightedTileIds.value = new Set();
+    highlightedHandTileIds.value = new Set();
     
     if (turnTimer.value) {
       clearInterval(turnTimer.value);
       turnTimer.value = null;
     }
+  }
+
+  // Set gameId for reconnection (before full state is received)
+  function setGameId(id) {
+    gameId.value = id;
+    gameEnded.value = false;
   }
 
   function setDisconnectTimeout(data) {
@@ -466,6 +487,7 @@ export const useGameStore = defineStore('game', () => {
     localMyTiles,
     hasChanges,
     highlightedTileIds,
+    highlightedHandTileIds,
     isInGame,
     currentPlayer,
     myPlayer,
@@ -475,6 +497,7 @@ export const useGameStore = defineStore('game', () => {
     handleTurnTimeout,
     endGame,
     clearGame,
+    setGameId,
     setDisconnectTimeout,
     clearDisconnectTimeout,
     addChatMessage,

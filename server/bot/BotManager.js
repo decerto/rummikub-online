@@ -4,7 +4,7 @@ import { MediumStrategy } from './strategies/MediumStrategy.js';
 import { HardStrategy } from './strategies/HardStrategy.js';
 import * as gameStore from '../stores/gameStore.js';
 import * as chatStore from '../stores/chatStore.js';
-import { hasPlayerWon, calculateInitialMeldPoints } from '../../common/rules.js';
+import { hasPlayerWon, calculateInitialMeldPoints, validateTableState } from '../../common/rules.js';
 
 const strategies = {
   easy: new EasyStrategy(),
@@ -35,6 +35,17 @@ export function executeBotTurn(io, game, callback) {
     rules: game.rules
   });
 
+  if (result.action === 'play') {
+    // Validate the bot's play before accepting it
+    const tableValidation = validateTableState(result.tableSets);
+    if (!tableValidation.valid) {
+      console.error(`[BOT ERROR] ${currentPlayer.username} created invalid table state:`, 
+        tableValidation.invalidSets.map(s => s.tiles.map(t => t.isJoker ? 'J' : `${t.color[0]}${t.number}`)));
+      // Force bot to draw instead
+      result.action = 'draw';
+    }
+  }
+  
   if (result.action === 'play') {
     // Bot made valid plays
     gameStore.updateTableSets(game.id, result.tableSets);

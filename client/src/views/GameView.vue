@@ -66,7 +66,7 @@
             <div class="table-sets">
               <div
                 v-for="(set, setIndex) in localTableSets"
-                :key="setIndex"
+                :key="getSetKey(set, setIndex)"
                 class="tile-set"
                 :class="{ 'invalid-set': !isSetValid(set) }"
               >
@@ -197,7 +197,11 @@
             @change="onRackChange"
           >
             <template #item="{ element: tile }">
-              <TileComponent :tile="tile" :draggable="gameStore.isMyTurn" />
+              <TileComponent 
+                :tile="tile" 
+                :draggable="gameStore.isMyTurn" 
+                :highlighted="gameStore.highlightedHandTileIds.has(tile.id)"
+              />
             </template>
           </draggable>
         </v-card>
@@ -316,6 +320,14 @@ const localTableSets = computed({
   get: () => gameStore.localTableSets,
   set: (value) => gameStore.updateLocalTableSets(value)
 });
+
+// Generate a stable key for each set - use sorted tile IDs to be stable after reordering
+function getSetKey(set, index) {
+  if (!set || set.length === 0) return `empty-${index}`;
+  // Use sorted tile IDs to create a stable key that doesn't change when tiles are reordered
+  const ids = set.map(t => t.id).sort().join('-');
+  return `set-${ids}`;
+}
 
 const localMyTiles = computed({
   get: () => gameStore.localMyTiles,
@@ -448,7 +460,8 @@ function revertToSavedState() {
 }
 
 function onSetChange(setIndex) {
-  const sets = [...localTableSets.value];
+  // Deep clone ALL sets to ensure we have fresh references
+  const sets = localTableSets.value.map(s => [...s]);
   let set = sets[setIndex];
   
   // Clean up empty sets
@@ -458,19 +471,24 @@ function onSetChange(setIndex) {
     return;
   }
   
-  // Auto-sort runs (same color tiles should be sorted by number)
+  console.log('[onSetChange] Before sort:', set.map(t => t.isJoker ? 'JOKER' : `${t.color}${t.number}`));
+  
+  // Auto-sort runs FIRST (same color tiles should be sorted by number)
   set = autoSortSet(set);
   sets[setIndex] = set;
   
-  // Update the sets before validation so the sorted version is shown
+  console.log('[onSetChange] After sort:', set.map(t => t.isJoker ? 'JOKER' : `${t.color}${t.number}`));
+  
+  // Update the store immediately with sorted version
   gameStore.updateLocalTableSets(sets);
   
-  // Validate the set
+  // Validate AFTER sorting - if invalid, show message but don't revert
+  // (allow user to continue building the set)
   const error = validateSetPlacement(set);
-  if (error) {
+  if (error && set.length >= 3) {
+    // Only show error for sets with 3+ tiles that are still invalid after sorting
     showInvalidMove(error);
     revertToSavedState();
-    return;
   }
 }
 
@@ -504,17 +522,46 @@ function autoSortSet(set) {
   return set;
 }
 
-// Insert jokers into gaps in a run
+// Insert jokers into gaps in a run, preferring to place at start if possible
 function insertJokersInGaps(sortedSet) {
   const regularTiles = sortedSet.filter(t => !t.isJoker);
   const jokers = sortedSet.filter(t => t.isJoker);
   
   if (jokers.length === 0 || regularTiles.length === 0) return sortedSet;
   
-  // Build the run with jokers filling gaps
+  // First, count how many jokers we need to fill gaps
+  let gapsNeeded = 0;
+  for (let i = 0; i < regularTiles.length - 1; i++) {
+    gapsNeeded += regularTiles[i + 1].number - regularTiles[i].number - 1;
+  }
+  
+  // Jokers left after filling gaps
+  const jokersForGaps = Math.min(gapsNeeded, jokers.length);
+  const extraJokers = jokers.length - jokersForGaps;
+  
+  // Determine how many extra jokers go at start vs end
+  // Prefer start if possible (number > 1 allows prepending)
+  const minNumber = regularTiles[0].number;
+  const maxNumber = regularTiles[regularTiles.length - 1].number;
+  
+  // Can prepend up to (minNumber - 1) jokers (can't go below 1)
+  const maxPrepend = Math.min(extraJokers, minNumber - 1);
+  // Remaining go at end, up to (13 - maxNumber)
+  const maxAppend = Math.min(extraJokers - maxPrepend, 13 - maxNumber);
+  
+  const jokersAtStart = maxPrepend;
+  const jokersAtEnd = extraJokers - jokersAtStart;
+  
+  // Build the result
   const result = [];
   let jokerIndex = 0;
   
+  // Add jokers at start
+  for (let i = 0; i < jokersAtStart; i++) {
+    result.push(jokers[jokerIndex++]);
+  }
+  
+  // Add regular tiles with jokers filling gaps
   for (let i = 0; i < regularTiles.length; i++) {
     result.push(regularTiles[i]);
     
@@ -528,7 +575,7 @@ function insertJokersInGaps(sortedSet) {
     }
   }
   
-  // Add remaining jokers at the end
+  // Add remaining jokers at end
   while (jokerIndex < jokers.length) {
     result.push(jokers[jokerIndex++]);
   }

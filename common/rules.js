@@ -44,7 +44,8 @@ export function isValidGroup(tiles) {
 
 /**
  * Check if a set of tiles forms a valid run (same color, consecutive numbers)
- * @param {Array} tiles - Array of tile objects
+ * This validates based on tile ORDER in the array, not just the numbers present.
+ * @param {Array} tiles - Array of tile objects in order
  * @returns {boolean}
  */
 export function isValidRun(tiles) {
@@ -52,9 +53,9 @@ export function isValidRun(tiles) {
     return false;
   }
 
-  // Separate jokers from regular tiles
-  const regularTiles = tiles.filter(t => !t.isJoker);
+  // Count jokers
   const jokerCount = tiles.filter(t => t.isJoker).length;
+  const regularTiles = tiles.filter(t => !t.isJoker);
 
   if (regularTiles.length === 0) {
     // All jokers - valid if at least 3
@@ -67,37 +68,42 @@ export function isValidRun(tiles) {
     return false;
   }
 
-  // Sort by number
-  const sortedTiles = [...regularTiles].sort((a, b) => a.number - b.number);
-
-  // Check for consecutive numbers with jokers filling gaps
-  let jokersUsed = 0;
-  for (let i = 1; i < sortedTiles.length; i++) {
-    const gap = sortedTiles[i].number - sortedTiles[i - 1].number - 1;
-    if (gap < 0) {
-      // Duplicate numbers
-      return false;
+  // Determine the run's number sequence based on tile positions
+  // First, find anchor points (regular tiles with their positions)
+  const anchors = [];
+  for (let i = 0; i < tiles.length; i++) {
+    if (!tiles[i].isJoker) {
+      anchors.push({ position: i, number: tiles[i].number });
     }
-    jokersUsed += gap;
   }
 
-  // Check if we have enough jokers to fill gaps
-  if (jokersUsed > jokerCount) {
+  // Check that anchors are in ascending order
+  for (let i = 1; i < anchors.length; i++) {
+    if (anchors[i].number <= anchors[i-1].number) {
+      return false; // Numbers not in ascending order
+    }
+  }
+
+  // Calculate what number each position represents
+  // Use first anchor as reference
+  const firstAnchor = anchors[0];
+  const startNumber = firstAnchor.number - firstAnchor.position;
+  const endNumber = startNumber + tiles.length - 1;
+
+  // Check bounds (1-13)
+  if (startNumber < 1 || endNumber > 13) {
     return false;
   }
 
-  // Verify the run doesn't exceed valid number range (1-13)
-  const minNumber = sortedTiles[0].number;
-  const maxNumber = sortedTiles[sortedTiles.length - 1].number;
-  const runLength = maxNumber - minNumber + 1 + (jokerCount - jokersUsed);
+  // Verify all anchors match their expected position
+  for (const anchor of anchors) {
+    const expectedNumber = startNumber + anchor.position;
+    if (anchor.number !== expectedNumber) {
+      return false; // Anchor doesn't match expected position
+    }
+  }
 
-  // Extra jokers can extend the run
-  const extraJokers = jokerCount - jokersUsed;
-  const canExtendLeft = minNumber - 1;
-  const canExtendRight = 13 - maxNumber;
-  const maxExtension = Math.min(extraJokers, canExtendLeft + canExtendRight);
-
-  return runLength <= 13;
+  return true;
 }
 
 /**
@@ -151,30 +157,27 @@ export function calculateInitialMeldPoints(sets) {
       const number = set.find(t => !t.isJoker)?.number || 0;
       totalPoints += number * set.length;
     } else if (result.type === 'run') {
-      // Calculate run points including joker positions
-      const regularTiles = set.filter(t => !t.isJoker).sort((a, b) => a.number - b.number);
+      // Calculate run points based on position
+      // Find an anchor tile to determine the start number
+      const regularTiles = set.filter(t => !t.isJoker);
       if (regularTiles.length === 0) continue;
-
-      const minNum = regularTiles[0].number;
-      const maxNum = regularTiles[regularTiles.length - 1].number;
       
-      // Sum all numbers in the run
-      for (let n = minNum; n <= maxNum; n++) {
-        totalPoints += n;
+      // Find first anchor
+      let anchorPos = -1;
+      let anchorNum = 0;
+      for (let i = 0; i < set.length; i++) {
+        if (!set[i].isJoker) {
+          anchorPos = i;
+          anchorNum = set[i].number;
+          break;
+        }
       }
       
-      // Add joker values for extended positions
-      const jokerCount = set.filter(t => t.isJoker).length;
-      const gapJokers = maxNum - minNum + 1 - regularTiles.length;
-      const extraJokers = jokerCount - gapJokers;
+      const startNum = anchorNum - anchorPos;
       
-      // Extra jokers extend the run
-      for (let i = 0; i < extraJokers; i++) {
-        if (minNum - i - 1 >= 1) {
-          totalPoints += minNum - i - 1;
-        } else if (maxNum + i + 1 <= 13) {
-          totalPoints += maxNum + i + 1;
-        }
+      // Sum all numbers in the run based on position
+      for (let i = 0; i < set.length; i++) {
+        totalPoints += startNum + i;
       }
     }
   }
