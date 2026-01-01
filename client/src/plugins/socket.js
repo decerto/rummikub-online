@@ -194,7 +194,46 @@ export function initSocket() {
     const lobbyStore = useLobbyStore();
     const gameStore = useGameStore();
     gameStore.clearGame();
+    gameStore.resetRematchState();
     lobbyStore.rejoinLobby(data.lobbyId);
+  });
+
+  socket.on('rematch-vote-update', (data) => {
+    const gameStore = useGameStore();
+    const stats = {
+      totalPlayers: data.totalPlayers,
+      yesVotes: data.yesVotes,
+      noVotes: data.noVotes,
+      votesReceived: data.votesReceived
+    };
+    gameStore.updateRematchVotes(data.votes, stats);
+  });
+
+  socket.on('rematch-cancelled', () => {
+    const gameStore = useGameStore();
+    const notificationStore = useNotificationStore();
+    gameStore.resetRematchState();
+    notificationStore.addNotification({
+      type: 'warning',
+      title: 'Rematch Cancelled',
+      message: 'Not enough players for a rematch'
+    });
+  });
+
+  socket.on('rematch-declined-boot', () => {
+    const gameStore = useGameStore();
+    const notificationStore = useNotificationStore();
+    gameStore.clearGame();
+    gameStore.resetRematchState();
+    notificationStore.addNotification({
+      type: 'info',
+      title: 'Rematch Declined',
+      message: 'You declined the rematch and have been returned to the main menu'
+    });
+    // Navigate to lobby browser
+    import('@/router').then(({ default: router }) => {
+      router.push('/lobbies');
+    });
   });
 
   socket.on('chat-broadcast', (message) => {

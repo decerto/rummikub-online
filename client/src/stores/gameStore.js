@@ -25,6 +25,11 @@ export const useGameStore = defineStore('game', () => {
   const scores = ref([]);
   const stats = ref(null);
   
+  // Rematch voting
+  const rematchVotes = ref({});
+  const rematchVoteStats = ref({ totalPlayers: 0, yesVotes: 0, noVotes: 0, votesReceived: 0 });
+  const hasVotedRematch = ref(false);
+  
   // Disconnect handling
   const disconnectTimeout = ref(null);
   
@@ -496,18 +501,27 @@ export const useGameStore = defineStore('game', () => {
     });
   }
 
-  function requestRematch() {
-    return new Promise((resolve, reject) => {
-      const socket = getSocket();
-      
-      socket.emit('rematch', (response) => {
-        if (response.success) {
-          resolve(response.lobbyId);
-        } else {
-          reject(new Error(response.error));
-        }
-      });
-    });
+  function voteRematch(vote) {
+    const socket = getSocket();
+    socket.emit('vote-rematch', { vote });
+    hasVotedRematch.value = true;
+  }
+
+  function declineRematch() {
+    const socket = getSocket();
+    socket.emit('decline-rematch');
+    hasVotedRematch.value = true;
+  }
+
+  function updateRematchVotes(votes, stats) {
+    rematchVotes.value = votes;
+    rematchVoteStats.value = stats;
+  }
+
+  function resetRematchState() {
+    rematchVotes.value = {};
+    rematchVoteStats.value = { totalPlayers: 0, yesVotes: 0, noVotes: 0, votesReceived: 0 };
+    hasVotedRematch.value = false;
   }
 
   function sendMessage(message) {
@@ -565,6 +579,9 @@ export const useGameStore = defineStore('game', () => {
     highlightedTileIds,
     highlightedHandTileIds,
     tilesPlacedThisTurn,
+    rematchVotes,
+    rematchVoteStats,
+    hasVotedRematch,
     isInGame,
     currentPlayer,
     myPlayer,
@@ -590,7 +607,10 @@ export const useGameStore = defineStore('game', () => {
     endTurn,
     drawTile,
     handleDisconnectedPlayer,
-    requestRematch,
+    voteRematch,
+    declineRematch,
+    updateRematchVotes,
+    resetRematchState,
     sendMessage
   };
 });

@@ -349,48 +349,194 @@ export function registerGameHandlers(io, socket) {
     }
   });
 
-  // Rematch request
-  socket.on('rematch', (callback) => {
+  // Vote for rematch
+  socket.on('vote-rematch', (data, callback) => {
+    const vote = data?.vote;
     const user = userStore.getUser(socket.id);
     if (!user?.gameId) {
-      return callback({ success: false, error: 'Not in a game' });
+      return callback?.({ success: false, error: 'Not in a game' });
     }
 
     const game = gameStore.getGame(user.gameId);
     if (!game || game.state !== GAME_STATE.FINISHED) {
-      return callback({ success: false, error: 'Game not finished' });
+      return callback?.({ success: false, error: 'Game not finished' });
     }
 
-    const lobby = lobbyStore.getLobby(game.lobbyId);
-    if (!lobby) {
-      return callback({ success: false, error: 'Lobby not found' });
+    // Initialize rematch votes if not exists
+    if (!game.rematchVotes) {
+      game.rematchVotes = new Map();
     }
 
-    if (lobby.hostSocketId !== socket.id) {
-      return callback({ success: false, error: 'Only host can start rematch' });
+    // Record the vote
+    game.rematchVotes.set(socket.id, vote);
+    
+    // Get list of human players (bots auto-accept)
+    const humanPlayers = game.players.filter(p => !p.isBot);
+    const votesReceived = game.rematchVotes.size;
+    const yesVotes = [...game.rematchVotes.values()].filter(v => v === true).length;
+    const noVotes = [...game.rematchVotes.values()].filter(v => v === false).length;
+    
+    // Broadcast vote update to all players
+    io.to(`game:${game.id}`).emit('rematch-vote-update', {
+      votes: Object.fromEntries(game.rematchVotes),
+      totalPlayers: humanPlayers.length,
+      yesVotes,
+      noVotes,
+      votesReceived
+    });
+
+    callback?.({ success: true });
+
+    // Check if all human players have voted
+    if (votesReceived >= humanPlayers.length) {
+      // If everyone voted yes, start the rematch
+      if (yesVotes === humanPlayers.length) {
+        executeRematch(io, game);
+      } else {
+        // Not everyone agreed - kick those who declined, rematch with those who accepted
+        handlePartialRematch(io, game);
+      }
+    }
+  });
+
+  // Leave game and decline rematch (return to main menu)
+  socket.on('decline-rematch', (callback) => {
+    const user = userStore.getUser(socket.id);
+    if (!user?.gameId) {
+      return callback?.({ success: true });
     }
 
-    // Delete old game
-    gameStore.deleteGame(game.id);
-    lobby.gameInProgress = false;
-    lobby.gameId = null;
-
-    // Update all players
-    for (const player of game.players) {
-      if (!player.isBot) {
-        userStore.updateUser(player.socketId, { gameId: null });
-        const playerSocket = io.sockets.sockets.get(player.socketId);
-        if (playerSocket) {
-          playerSocket.leave(`game:${game.id}`);
+    const game = gameStore.getGame(user.gameId);
+    if (game && game.rematchVotes) {
+      game.rematchVotes.set(socket.id, false);
+      
+      // Notify others
+      const humanPlayers = game.players.filter(p => !p.isBot);
+      const yesVotes = [...game.rematchVotes.values()].filter(v => v === true).length;
+      const noVotes = [...game.rematchVotes.values()].filter(v => v === false).length;
+      
+      io.to(`game:${game.id}`).emit('rematch-vote-update', {
+        votes: Object.fromEntries(game.rematchVotes),
+        totalPlayers: humanPlayers.length,
+        yesVotes,
+        noVotes,
+        votesReceived: game.rematchVotes.size
+      });
+      
+      // Check if all have voted
+      if (game.rematchVotes.size >= humanPlayers.length) {
+        if (yesVotes === humanPlayers.length) {
+          executeRematch(io, game);
+        } else {
+          handlePartialRematch(io, game);
         }
       }
     }
 
-    // Notify all to return to lobby
-    io.to(`lobby:${lobby.id}`).emit('rematch-started', { lobbyId: lobby.id });
+    // Leave the game room
+    if (game) {
+      socket.leave(`game:${game.id}`);
+    }
     
-    callback({ success: true, lobbyId: lobby.id });
+    userStore.updateUser(socket.id, { gameId: null, lobbyId: null });
+    callback?.({ success: true });
   });
+}
+
+// Execute rematch when everyone agrees
+function executeRematch(io, game) {
+  const lobby = lobbyStore.getLobby(game.lobbyId);
+  if (!lobby) return;
+
+  // Delete old game
+  gameStore.deleteGame(game.id);
+  lobby.gameInProgress = false;
+  lobby.gameId = null;
+
+  // Update all players
+  for (const player of game.players) {
+    if (!player.isBot) {
+      userStore.updateUser(player.socketId, { gameId: null });
+      const playerSocket = io.sockets.sockets.get(player.socketId);
+      if (playerSocket) {
+        playerSocket.leave(`game:${game.id}`);
+      }
+    }
+  }
+
+  // Notify all to return to lobby
+  io.to(`lobby:${lobby.id}`).emit('rematch-started', { lobbyId: lobby.id });
+}
+
+// Handle partial rematch - some declined
+function handlePartialRematch(io, game) {
+  const lobby = lobbyStore.getLobby(game.lobbyId);
+  if (!lobby) return;
+
+  const yesVoters = [...game.rematchVotes.entries()]
+    .filter(([_, vote]) => vote === true)
+    .map(([socketId]) => socketId);
+  
+  const noVoters = [...game.rematchVotes.entries()]
+    .filter(([_, vote]) => vote === false)
+    .map(([socketId]) => socketId);
+
+  // If no one wants rematch, just clean up
+  if (yesVoters.length === 0) {
+    gameStore.deleteGame(game.id);
+    lobby.gameInProgress = false;
+    lobby.gameId = null;
+    
+    // Notify everyone to go to main menu
+    io.to(`game:${game.id}`).emit('rematch-cancelled', { 
+      reason: 'No players voted for rematch' 
+    });
+    return;
+  }
+
+  // If only 1 person wants rematch, can't play alone
+  if (yesVoters.length < 2) {
+    gameStore.deleteGame(game.id);
+    lobby.gameInProgress = false;
+    lobby.gameId = null;
+    
+    io.to(`game:${game.id}`).emit('rematch-cancelled', { 
+      reason: 'Not enough players for rematch (need at least 2)' 
+    });
+    return;
+  }
+
+  // Remove players who declined from the lobby
+  for (const socketId of noVoters) {
+    lobbyStore.removePlayerFromLobby(lobby.id, socketId);
+    userStore.updateUser(socketId, { gameId: null, lobbyId: null });
+    
+    const playerSocket = io.sockets.sockets.get(socketId);
+    if (playerSocket) {
+      playerSocket.leave(`game:${game.id}`);
+      playerSocket.leave(`lobby:${lobby.id}`);
+      playerSocket.emit('rematch-declined-boot', { 
+        reason: 'You declined the rematch' 
+      });
+    }
+  }
+
+  // Delete old game
+  gameStore.deleteGame(game.id);
+  lobby.gameInProgress = false;
+  lobby.gameId = null;
+
+  // Update yes voters
+  for (const socketId of yesVoters) {
+    userStore.updateUser(socketId, { gameId: null });
+    const playerSocket = io.sockets.sockets.get(socketId);
+    if (playerSocket) {
+      playerSocket.leave(`game:${game.id}`);
+    }
+  }
+
+  // Notify remaining players to return to lobby
+  io.to(`lobby:${lobby.id}`).emit('rematch-started', { lobbyId: lobby.id });
 }
 
 function processEndTurn(io, game, newTableSets, newPlayerTiles) {

@@ -103,24 +103,91 @@
           </v-card-text>
         </v-card>
         
-        <!-- Actions -->
-        <v-row justify="center">
-          <v-col cols="auto">
-            <v-btn
-              v-if="isHost"
-              color="primary"
-              size="large"
-              @click="rematch"
-              :loading="isLoading"
-            >
-              <v-icon left>mdi-refresh</v-icon>
-              Rematch
-            </v-btn>
-            <v-chip v-else color="info" variant="tonal">
-              Waiting for host to start rematch...
-            </v-chip>
-          </v-col>
+        <!-- Rematch Voting -->
+        <v-card color="surface" class="mb-6">
+          <v-card-title class="text-center">
+            <v-icon class="mr-2">mdi-vote</v-icon>
+            Rematch Vote
+          </v-card-title>
           
+          <v-card-text class="text-center">
+            <!-- Voting Status -->
+            <div v-if="gameStore.rematchVoteStats.totalPlayers > 0" class="mb-4">
+              <v-progress-linear
+                :model-value="voteProgress"
+                color="success"
+                height="24"
+                rounded
+                class="mb-2"
+              >
+                <template v-slot:default>
+                  <span class="text-body-2 font-weight-bold">
+                    {{ gameStore.rematchVoteStats.yesVotes }} / {{ gameStore.rematchVoteStats.totalPlayers }} ready
+                  </span>
+                </template>
+              </v-progress-linear>
+              
+              <!-- Player Vote Indicators -->
+              <div class="d-flex flex-wrap justify-center ga-2 mt-3">
+                <v-chip
+                  v-for="score in humanPlayers"
+                  :key="score.socketId"
+                  :color="getVoteColor(score.socketId)"
+                  variant="tonal"
+                  size="small"
+                >
+                  <v-icon start size="small">{{ getVoteIcon(score.socketId) }}</v-icon>
+                  {{ score.username }}
+                </v-chip>
+              </div>
+            </div>
+            
+            <!-- Vote Buttons (if not voted yet) -->
+            <div v-if="!gameStore.hasVotedRematch && !isBot">
+              <div class="text-body-1 mb-4 text-medium-emphasis">
+                Would you like to play again with the same players?
+              </div>
+              <v-row justify="center">
+                <v-col cols="auto">
+                  <v-btn
+                    color="success"
+                    size="large"
+                    @click="voteYes"
+                    variant="elevated"
+                  >
+                    <v-icon left>mdi-check</v-icon>
+                    Yes, Rematch!
+                  </v-btn>
+                </v-col>
+                <v-col cols="auto">
+                  <v-btn
+                    color="error"
+                    size="large"
+                    @click="voteNo"
+                    variant="outlined"
+                  >
+                    <v-icon left>mdi-close</v-icon>
+                    No Thanks
+                  </v-btn>
+                </v-col>
+              </v-row>
+            </div>
+            
+            <!-- Waiting for others (if already voted) -->
+            <div v-else-if="gameStore.hasVotedRematch" class="text-center">
+              <v-progress-circular
+                indeterminate
+                color="primary"
+                size="32"
+                class="mr-2"
+              />
+              <span class="text-body-1">Waiting for other players to vote...</span>
+            </div>
+          </v-card-text>
+        </v-card>
+        
+        <!-- Return to Lobbies Button (always visible) -->
+        <v-row justify="center">
           <v-col cols="auto">
             <v-btn
               color="secondary"
@@ -153,18 +220,40 @@ const lobbyStore = useLobbyStore();
 const userStore = useUserStore();
 const notificationStore = useNotificationStore();
 
-const isLoading = ref(false);
-
 const isWinner = computed(() => {
   const socket = getSocket();
   return gameStore.winner?.socketId === socket?.id;
 });
 
-const isHost = computed(() => {
-  // First player is typically the host
+const isBot = computed(() => {
   const socket = getSocket();
-  return gameStore.players[0]?.socketId === socket?.id;
+  const myPlayer = gameStore.players.find(p => p.socketId === socket?.id);
+  return myPlayer?.isBot || false;
 });
+
+const humanPlayers = computed(() => {
+  return gameStore.scores.filter(s => !s.isBot);
+});
+
+const voteProgress = computed(() => {
+  const stats = gameStore.rematchVoteStats;
+  if (stats.totalPlayers === 0) return 0;
+  return (stats.yesVotes / stats.totalPlayers) * 100;
+});
+
+function getVoteColor(socketId) {
+  const vote = gameStore.rematchVotes[socketId];
+  if (vote === true) return 'success';
+  if (vote === false) return 'error';
+  return 'grey';
+}
+
+function getVoteIcon(socketId) {
+  const vote = gameStore.rematchVotes[socketId];
+  if (vote === true) return 'mdi-check';
+  if (vote === false) return 'mdi-close';
+  return 'mdi-help';
+}
 
 function getRankColor(index) {
   switch (index) {
@@ -200,22 +289,12 @@ function formatDuration(ms) {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-async function rematch() {
-  isLoading.value = true;
-  try {
-    const lobbyId = await gameStore.requestRematch();
-    gameStore.clearGame();
-    await lobbyStore.rejoinLobby(lobbyId);
-    router.push({ name: 'Lobby', params: { id: lobbyId } });
-  } catch (error) {
-    notificationStore.addNotification({
-      type: 'error',
-      title: 'Error',
-      message: error.message
-    });
-  } finally {
-    isLoading.value = false;
-  }
+function voteYes() {
+  gameStore.voteRematch(true);
+}
+
+function voteNo() {
+  gameStore.declineRematch();
 }
 
 function returnToLobby() {
@@ -223,6 +302,7 @@ function returnToLobby() {
   // Properly leave the game on the server
   socket.emit('leave-game', () => {
     gameStore.clearGame();
+    gameStore.resetRematchState();
     lobbyStore.clearCurrentLobby();
     router.push({ name: 'LobbyBrowser' });
   });
