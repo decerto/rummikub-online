@@ -1,0 +1,7 @@
+{
+  "appService.defaultWebAppToDeploy": "/subscriptions/780dbe5d-b39d-41f1-b158-e8133e256200/resourceGroups/Rummikub_group/providers/Microsoft.Web/sites/rummikub-online",
+  "appService.deploySubpath": ".",
+  "appService.preDeployTask": "npm: build",
+  "appService.postDeployTask": "",
+  "appService.showBuildDuringDeployPrompt": false
+}

@@ -1,0 +1,31 @@
+{
+  "name": "rummikub-online",
+  "version": "1.0.0",
+  "description": "Online multiplayer Rummikub game with real-time gameplay",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "start": "node server/index.js",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "postinstall": "npm run install:all && npm run build"
+  },
+  "keywords": [
+    "rummikub",
+    "multiplayer",
+    "game",
+    "socket.io",
+    "vue"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "rummikub-server",
+  "version": "1.0.0",
+  "description": "Rummikub game server",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test:bots": "node test/bot-test.js",
+    "test:bots:10": "node test/bot-test.js 10",
+    "test:bots:50": "node test/bot-test.js 50"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}
