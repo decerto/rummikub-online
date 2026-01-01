@@ -75,20 +75,20 @@
                   :group="{ name: 'tiles', pull: gameStore.isMyTurn, put: gameStore.isMyTurn }"
                   item-key="id"
                   class="set-tiles"
-                  :animation="150"
+                  :animation="0"
                   ghost-class="tile-ghost"
+                  chosen-class="tile-chosen"
                   drag-class="tile-dragging"
-                  :force-fallback="true"
-                  :fallback-class="'tile-fallback'"
-                  :fallback-on-body="true"
                   :move="onTableTileMove"
+                  filter=".tile-locked"
+                  :prevent-on-filter="true"
                   @start="onDragStart"
                   @change="onSetChange(setIndex)"
                 >
                   <template #item="{ element: tile }">
                     <TileComponent 
                       :tile="tile" 
-                      :draggable="gameStore.isMyTurn && !tile.isJoker" 
+                      :draggable="gameStore.isMyTurn" 
                       :highlighted="gameStore.highlightedTileIds.has(tile.id)"
                       :class="{ 'tile-locked': tile.isJoker }"
                     />
@@ -104,10 +104,9 @@
               :group="{ name: 'tiles', pull: false, put: true }"
               item-key="id"
               class="new-set-zone"
+              :animation="0"
               ghost-class="tile-ghost"
-              :force-fallback="true"
-              :fallback-class="'tile-fallback'"
-              :fallback-on-body="true"
+              chosen-class="tile-chosen"
               @start="onDragStart"
               @change="onNewSetDrop"
             >
@@ -193,12 +192,10 @@
             :group="{ name: 'tiles', pull: gameStore.isMyTurn, put: gameStore.isMyTurn }"
             item-key="id"
             class="rack-tiles"
-            :animation="150"
+            :animation="0"
             ghost-class="tile-ghost"
+            chosen-class="tile-chosen"
             drag-class="tile-dragging"
-            :force-fallback="true"
-            :fallback-class="'tile-fallback'"
-            :fallback-on-body="true"
             @start="onDragStart"
             @change="onRackChange"
           >
@@ -797,25 +794,12 @@ function sendMessage(message) {
   min-height: 0;
 }
 
-/* Drag and drop styles */
+/* Drag and drop styles - scoped */
 .tile-ghost {
-  opacity: 0.4;
-  background: rgba(124, 58, 237, 0.3) !important;
-  border: 2px dashed rgba(124, 58, 237, 0.6) !important;
-  border-radius: 10px;
-}
-
-.tile-dragging {
-  opacity: 0;
-}
-
-.tile-fallback {
-  opacity: 1 !important;
-  transform: rotate(5deg);
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.5),
-    0 0 30px rgba(124, 58, 237, 0.3) !important;
-  z-index: 9999 !important;
+  opacity: 0.6 !important;
+  background: rgba(124, 58, 237, 0.15) !important;
+  border: 2px dashed rgba(124, 58, 237, 0.8) !important;
+  border-radius: 10px !important;
 }
 
 /* Prevent layout shifts during drag */
@@ -825,14 +809,6 @@ function sendMessage(message) {
 
 .tile-set {
   flex-shrink: 0;
-}
-
-.sortable-ghost {
-  opacity: 0.4;
-}
-
-.sortable-drag {
-  opacity: 0;
 }
 
 /* Jokers on table are locked (cannot be dragged to hand) */
@@ -849,5 +825,76 @@ function sendMessage(message) {
   font-size: 12px;
   z-index: 10;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+</style>
+
+<!-- Global styles for drag (not scoped because classes may be added to body elements) -->
+<style>
+/* Tile being picked up - lift effect */
+.tile-chosen {
+  animation: tile-pickup 0.15s ease-out forwards !important;
+  z-index: 1000 !important;
+  cursor: grabbing !important;
+}
+
+@keyframes tile-pickup {
+  0% {
+    transform: scale(1) rotate(0deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    transform: scale(1.15) rotate(-2deg);
+  }
+  100% {
+    transform: scale(1.1) rotate(2deg);
+    box-shadow: 
+      0 20px 40px rgba(0, 0, 0, 0.4),
+      0 0 30px rgba(124, 58, 237, 0.5),
+      0 0 60px rgba(124, 58, 237, 0.2);
+  }
+}
+
+/* Source tile while dragging - fade and shrink */
+.tile-dragging {
+  opacity: 0.3 !important;
+  transform: scale(0.9) !important;
+  filter: grayscale(50%) !important;
+  transition: all 0.15s ease-out !important;
+}
+
+.sortable-drag {
+  opacity: 0.3 !important;
+  transform: scale(0.9) !important;
+}
+
+/* Ghost placeholder - where tile will drop */
+.tile-ghost {
+  opacity: 0.6 !important;
+  background: rgba(124, 58, 237, 0.15) !important;
+  border: 2px dashed rgba(124, 58, 237, 0.8) !important;
+  border-radius: 10px !important;
+  box-shadow: 
+    0 0 20px rgba(124, 58, 237, 0.4),
+    inset 0 0 20px rgba(124, 58, 237, 0.1) !important;
+  animation: ghost-pulse 0.8s ease-in-out infinite !important;
+}
+
+@keyframes ghost-pulse {
+  0%, 100% {
+    border-color: rgba(124, 58, 237, 0.6);
+    box-shadow: 0 0 15px rgba(124, 58, 237, 0.3);
+  }
+  50% {
+    border-color: rgba(124, 58, 237, 1);
+    box-shadow: 0 0 25px rgba(124, 58, 237, 0.6);
+  }
+}
+
+/* Tiles in rack/sets get a subtle bounce when receiving */
+.rack-tiles .tile,
+.set-tiles .tile {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), 
+              box-shadow 0.2s ease,
+              opacity 0.15s ease !important;
 }
 </style>

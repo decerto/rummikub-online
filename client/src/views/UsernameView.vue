@@ -45,6 +45,15 @@
               <br />
               Play with friends or challenge our AI bots.
             </p>
+            <v-btn
+              variant="text"
+              color="primary"
+              class="mt-2"
+              :to="{ name: 'Rules' }"
+            >
+              <v-icon start>mdi-book-open-page-variant</v-icon>
+              How to Play
+            </v-btn>
           </v-card-text>
         </v-card>
       </v-col>

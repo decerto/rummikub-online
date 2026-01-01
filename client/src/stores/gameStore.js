@@ -62,6 +62,10 @@ export const useGameStore = defineStore('game', () => {
     scores.value = [];
     hasChanges.value = false;
     
+    // Apply default sort (by color) for new games
+    currentSortOrder.value = 'color';
+    applySortByColor();
+    
     checkIfMyTurn();
   }
 
@@ -129,6 +133,13 @@ export const useGameStore = defineStore('game', () => {
     localMyTiles.value = [...myTiles.value];
     localTableSets.value = tableSets.value.map(s => [...s]);
     
+    // Re-apply sort if a sort order was set
+    if (currentSortOrder.value === 'color') {
+      applySortByColor();
+    } else if (currentSortOrder.value === 'number') {
+      applySortByNumber();
+    }
+    
     // Start countdown
     if (turnTimer.value) {
       clearInterval(turnTimer.value);
@@ -152,6 +163,13 @@ export const useGameStore = defineStore('game', () => {
     // Revert local state
     localMyTiles.value = [...myTiles.value];
     localTableSets.value = tableSets.value.map(s => [...s]);
+    
+    // Re-apply sort if needed
+    if (currentSortOrder.value === 'color') {
+      applySortByColor();
+    } else if (currentSortOrder.value === 'number') {
+      applySortByNumber();
+    }
   }
 
   function endGame(data) {

@@ -9,6 +9,11 @@ const routes = [
     component: () => import('@/views/UsernameView.vue')
   },
   {
+    path: '/rules',
+    name: 'Rules',
+    component: () => import('@/views/RulesView.vue')
+  },
+  {
     path: '/lobbies',
     name: 'LobbyBrowser',
     component: () => import('@/views/LobbyBrowserView.vue'),

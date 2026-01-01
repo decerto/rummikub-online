@@ -2,6 +2,8 @@
 
 An online multiplayer Rummikub game with real-time gameplay using WebSockets.
 
+## 🌐 [Play Now →](https://rummikub-online-g9hrgvdxevg4eucf.francecentral-01.azurewebsites.net/)
+
 ![Rummikub](https://img.shields.io/badge/Rummikub-Online-FFB300?style=for-the-badge)
 ![Vue](https://img.shields.io/badge/Vue-3-4FC08D?style=for-the-badge&logo=vue.js)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js)
@@ -12,7 +14,7 @@ An online multiplayer Rummikub game with real-time gameplay using WebSockets.
 ### 🎯 Core Gameplay
 - **Official Rummikub Rules** - Initial meld requirement, valid sets (runs & groups), joker manipulation
 - **Drag-and-Drop Interface** - Intuitive tile movement with VueDraggable
-- **1-Minute Turn Timer** - Configurable timer with free tile movement during your turn
+- **2-Minute Turn Timer** - Configurable timer with free tile movement during your turn
 - **Real-time Validation** - Invalid moves are automatically reverted
 
 ### 👥 Multiplayer

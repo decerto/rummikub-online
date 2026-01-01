@@ -16,6 +16,15 @@
           </div>
           
           <div class="d-flex align-center ga-2">
+            <v-btn
+              variant="text"
+              color="secondary"
+              :to="{ name: 'Rules' }"
+            >
+              <v-icon start>mdi-book-open-page-variant</v-icon>
+              Rules
+            </v-btn>
+            
             <v-badge
               :content="notificationStore.unreadCount"
               :model-value="notificationStore.hasUnread"
