@@ -387,6 +387,12 @@ export function registerGameHandlers(io, socket) {
 
     callback?.({ success: true });
 
+    // Special case: Solo player vs bots - immediate rematch if they vote yes
+    if (humanPlayers.length === 1 && vote === true) {
+      executeRematch(io, game);
+      return;
+    }
+
     // Check if all human players have voted
     if (votesReceived >= humanPlayers.length) {
       // If everyone voted yes, start the rematch
@@ -481,7 +487,10 @@ function handlePartialRematch(io, game) {
     .filter(([_, vote]) => vote === false)
     .map(([socketId]) => socketId);
 
-  // If no one wants rematch, just clean up
+  // Count bots in the game (they always stay for rematch)
+  const botCount = game.players.filter(p => p.isBot).length;
+
+  // If no human wants rematch, just clean up
   if (yesVoters.length === 0) {
     gameStore.deleteGame(game.id);
     lobby.gameInProgress = false;
@@ -494,8 +503,9 @@ function handlePartialRematch(io, game) {
     return;
   }
 
-  // If only 1 person wants rematch, can't play alone
-  if (yesVoters.length < 2) {
+  // Check total players (humans who voted yes + bots)
+  const totalRematchPlayers = yesVoters.length + botCount;
+  if (totalRematchPlayers < 2) {
     gameStore.deleteGame(game.id);
     lobby.gameInProgress = false;
     lobby.gameId = null;
