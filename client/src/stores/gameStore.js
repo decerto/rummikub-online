@@ -64,6 +64,11 @@ export const useGameStore = defineStore('game', () => {
     return players.value.find(p => p.socketId === socket?.id);
   });
 
+  // Check if current player has played their initial meld
+  const hasPlayedInitialMeld = computed(() => {
+    return myPlayer.value?.hasPlayedInitialMeld || false;
+  });
+
   function initGame(data) {
     gameId.value = data.gameId;
     players.value = data.players;
@@ -585,6 +590,7 @@ export const useGameStore = defineStore('game', () => {
     isInGame,
     currentPlayer,
     myPlayer,
+    hasPlayedInitialMeld,
     initGame,
     updateGameState,
     startTurn,

@@ -26,10 +26,15 @@ export function executeBotTurn(io, game, callback) {
   const originalPlayerTileIds = new Set(currentPlayer.tiles.map(t => t.id));
   const originalSetCount = game.tableSets.length;
   
+  // Deep copy table sets and player tiles to prevent mutation of game state
+  const deepCopyTile = (tile) => ({ ...tile });
+  const deepCopyTableSets = game.tableSets.map(set => set.map(deepCopyTile));
+  const deepCopyPlayerTiles = currentPlayer.tiles.map(deepCopyTile);
+  
   // Execute bot strategy
   const result = strategy.play({
-    playerTiles: [...currentPlayer.tiles],
-    tableSets: game.tableSets.map(set => [...set]),
+    playerTiles: deepCopyPlayerTiles,
+    tableSets: deepCopyTableSets,
     tilePool: game.tilePool,
     hasPlayedInitialMeld: currentPlayer.hasPlayedInitialMeld,
     rules: game.rules

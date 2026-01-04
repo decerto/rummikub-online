@@ -576,6 +576,67 @@ function processEndTurn(io, game, newTableSets, newPlayerTiles) {
   
   const hasMadeChanges = hasPlacedTiles || tableWasModified;
   
+  // Block table manipulation before initial meld
+  // Players who haven't played their initial meld cannot rearrange existing table tiles
+  if (!currentPlayer.hasPlayedInitialMeld && turnStartState?.tableSets?.length > 0) {
+    // Check if any EXISTING table tiles have been moved/rearranged
+    const startTableTilePositions = new Map(); // tile.id -> setIndex
+    for (let setIdx = 0; setIdx < (turnStartState?.tableSets || []).length; setIdx++) {
+      for (const tile of turnStartState.tableSets[setIdx]) {
+        startTableTilePositions.set(tile.id, setIdx);
+      }
+    }
+    
+    // Check end positions of all tiles that were on the table at start
+    for (let setIdx = 0; setIdx < newTableSets.length; setIdx++) {
+      for (const tile of newTableSets[setIdx]) {
+        const originalSetIdx = startTableTilePositions.get(tile.id);
+        if (originalSetIdx !== undefined && originalSetIdx !== setIdx) {
+          // A tile that was on the table has been moved to a different set
+          console.log('[Game] Invalid: Player manipulated table tiles before initial meld');
+          gameStore.revertToTurnStart(game.id);
+          return {
+            success: false,
+            error: 'You cannot rearrange table tiles until you\'ve played your initial meld (30+ points from your hand).',
+            reverted: true
+          };
+        }
+      }
+    }
+    
+    // Also check if existing sets were modified (tiles added from table)
+    for (let setIdx = 0; setIdx < (turnStartState?.tableSets || []).length; setIdx++) {
+      const originalSet = turnStartState.tableSets[setIdx];
+      const originalTileIds = new Set(originalSet.map(t => t.id));
+      
+      // Find the corresponding set in new table (if it exists)
+      const matchingNewSet = newTableSets.find(newSet => {
+        const newSetIds = new Set(newSet.map(t => t.id));
+        // Check if this new set contains any tiles from the original set
+        return [...originalTileIds].some(id => newSetIds.has(id));
+      });
+      
+      if (matchingNewSet) {
+        const newSetIds = new Set(matchingNewSet.map(t => t.id));
+        // Check if table tiles were added to this set from another table set
+        for (const tile of matchingNewSet) {
+          const wasOnTableAtStart = startTableTilePositions.has(tile.id);
+          const wasInThisSet = originalTileIds.has(tile.id);
+          if (wasOnTableAtStart && !wasInThisSet) {
+            // A tile from another table set was added to this set - table manipulation!
+            console.log('[Game] Invalid: Player manipulated table tiles before initial meld');
+            gameStore.revertToTurnStart(game.id);
+            return {
+              success: false,
+              error: 'You cannot rearrange table tiles until you\'ve played your initial meld (30+ points from your hand).',
+              reverted: true
+            };
+          }
+        }
+      }
+    }
+  }
+  
   // Prevent jokers from being taken from table to hand
   // Jokers on the table must stay on the table (can only be rearranged between sets)
   const startTableJokers = (turnStartState?.tableSets || []).flat().filter(t => t.isJoker);

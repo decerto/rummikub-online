@@ -620,6 +620,8 @@ function onDragStart() {
 function onTableTileMove(evt) {
   const draggedTile = evt.draggedContext?.element;
   const toRack = evt.to?.classList?.contains('rack-tiles');
+  const fromSet = evt.from;
+  const toSet = evt.to;
   
   // If moving to rack (hand), check restrictions
   if (toRack && draggedTile) {
@@ -635,6 +637,20 @@ function onTableTileMove(evt) {
       return false;
     }
   }
+  
+  // If player hasn't played initial meld, block moving table tiles between sets
+  // (they can only add tiles from their hand, not rearrange the table)
+  if (!gameStore.hasPlayedInitialMeld) {
+    // Check if this tile was already on the table (not placed this turn)
+    const wasOnTableBeforeTurn = !gameStore.tilesPlacedThisTurn.has(draggedTile?.id);
+    const isMovingBetweenSets = fromSet !== toSet && !toRack && fromSet?.classList?.contains('set-tiles');
+    
+    if (wasOnTableBeforeTurn && isMovingBetweenSets) {
+      showInvalidMove('You cannot rearrange table tiles until you\'ve played your initial meld (30+ points)');
+      return false;
+    }
+  }
+  
   return true;
 }
 
