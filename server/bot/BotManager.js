@@ -21,6 +21,8 @@ export function executeBotTurn(io, game, callback) {
 
   const strategy = strategies[currentPlayer.botDifficulty] || strategies.medium;
   
+  console.log(`[BOT] ${currentPlayer.username} using ${currentPlayer.botDifficulty || 'medium'} strategy`);
+  
   // Store original state to find what tiles were played
   const originalTableTileIds = new Set(game.tableSets.flat().map(t => t.id));
   const originalPlayerTileIds = new Set(currentPlayer.tiles.map(t => t.id));
@@ -48,6 +50,42 @@ export function executeBotTurn(io, game, callback) {
         tableValidation.invalidSets.map(s => s.tiles.map(t => t.isJoker ? 'J' : `${t.color[0]}${t.number}`)));
       // Force bot to draw instead
       result.action = 'draw';
+    }
+    
+    // CRITICAL: Validate that no tiles were lost
+    // Total tiles should be: original table tiles + original player tiles = new table tiles + new player tiles
+    const originalTableTileCount = deepCopyTableSets.flat().length;
+    const originalPlayerTileCount = deepCopyPlayerTiles.length;
+    const newTableTileCount = result.tableSets.flat().length;
+    const newPlayerTileCount = result.playerTiles.length;
+    
+    const originalTotal = originalTableTileCount + originalPlayerTileCount;
+    const newTotal = newTableTileCount + newPlayerTileCount;
+    
+    if (originalTotal !== newTotal) {
+      console.error(`[BOT ERROR] ${currentPlayer.username} lost tiles! Original: ${originalTotal} (table: ${originalTableTileCount}, hand: ${originalPlayerTileCount}), New: ${newTotal} (table: ${newTableTileCount}, hand: ${newPlayerTileCount})`);
+      // Force bot to draw instead - the play is invalid
+      result.action = 'draw';
+    }
+    
+    // Also verify all original table tiles are still on the table (no table tiles disappeared)
+    if (result.action === 'play') {
+      const newTableTileIds = new Set(result.tableSets.flat().map(t => t.id));
+      const newPlayerTileIds = new Set(result.playerTiles.map(t => t.id));
+      
+      for (const tileId of originalTableTileIds) {
+        // Each original table tile must still be on the table (not in hand, not disappeared)
+        if (!newTableTileIds.has(tileId)) {
+          // The tile is not on the table - check if it was a joker swap (allowed)
+          // Actually, joker swaps move jokers from table to hand, but only if replaced
+          // For now, let's just ensure the tile exists somewhere
+          if (!newPlayerTileIds.has(tileId)) {
+            console.error(`[BOT ERROR] ${currentPlayer.username} lost table tile ${tileId}!`);
+            result.action = 'draw';
+            break;
+          }
+        }
+      }
     }
   }
   

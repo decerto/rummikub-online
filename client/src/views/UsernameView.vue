@@ -67,10 +67,12 @@ import { useRouter } from 'vue-router';
 import { getSocket } from '@/plugins/socket';
 import { useUserStore } from '@/stores/userStore';
 import { useGameStore } from '@/stores/gameStore';
+import { useLobbyStore } from '@/stores/lobbyStore';
 
 const router = useRouter();
 const userStore = useUserStore();
 const gameStore = useGameStore();
+const lobbyStore = useLobbyStore();
 
 const username = ref('');
 const errorMessage = ref('');
@@ -110,6 +112,10 @@ async function handleSubmit() {
           return;
         }
       }
+      
+      // Not a reconnection - clear any stale lobby/game state
+      lobbyStore.clearCurrentLobby();
+      gameStore.clearGame();
       
       router.push({ name: 'LobbyBrowser' });
     } else {

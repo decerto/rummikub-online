@@ -282,6 +282,16 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  function leaveGame() {
+    return new Promise((resolve) => {
+      const socket = getSocket();
+      socket.emit('leave-game', (response) => {
+        clearGame();
+        resolve(response);
+      });
+    });
+  }
+
   // Set gameId for reconnection (before full state is received)
   function setGameId(id) {
     gameId.value = id;
@@ -597,6 +607,7 @@ export const useGameStore = defineStore('game', () => {
     handleTurnTimeout,
     endGame,
     clearGame,
+    leaveGame,
     setGameId,
     setDisconnectTimeout,
     clearDisconnectTimeout,

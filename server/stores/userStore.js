@@ -5,6 +5,15 @@ const users = new Map();
 const usernameToSocketId = new Map();
 
 export function addUser(socketId, username) {
+  // First, clean up any existing user for this socket
+  // This handles the case where user reconnected with old username, then registered with a new one
+  const existingUser = users.get(socketId);
+  if (existingUser) {
+    // Remove old username mapping
+    usernameToSocketId.delete(existingUser.username.toLowerCase());
+    users.delete(socketId);
+  }
+  
   const user = {
     socketId,
     username,

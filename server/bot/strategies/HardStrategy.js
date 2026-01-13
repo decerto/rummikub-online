@@ -7,10 +7,10 @@ import { MediumStrategy } from './MediumStrategy.js';
 export class HardStrategy {
   constructor() {
     this.mediumStrategy = new MediumStrategy();
-    this.maxSearchDepth = 10; // How many moves ahead to consider
-    this.maxCombinations = 2000; // Limit combinations to prevent timeout
-    this.maxIterations = 30; // Maximum cascade iterations
-    this.explorationDepth = 20; // How deep to explore table rearrangements
+    this.maxSearchDepth = 100; // How many moves ahead to consider
+    this.maxCombinations = 5000; // Limit combinations to prevent timeout
+    this.maxIterations = 300; // Maximum cascade iterations
+    this.explorationDepth = 200; // How deep to explore table rearrangements
   }
 
   play(state) {

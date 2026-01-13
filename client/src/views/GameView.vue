@@ -68,6 +68,14 @@
                 @click="showChat = !showChat"
                 class="chat-toggle"
               />
+              
+              <v-btn
+                icon="mdi-exit-to-app"
+                variant="text"
+                color="error"
+                @click="showLeaveDialog = true"
+                title="Leave Game"
+              />
             </div>
           </div>
         </v-card>
@@ -308,6 +316,31 @@
       </v-card>
     </v-dialog>
     
+    <!-- Leave game confirmation dialog -->
+    <v-dialog v-model="showLeaveDialog" max-width="400">
+      <v-card>
+        <v-card-title>Leave Game?</v-card-title>
+        <v-card-text>
+          Are you sure you want to leave the game? You won't be able to rejoin this game.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            variant="text"
+            @click="showLeaveDialog = false"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="error"
+            @click="leaveGame"
+          >
+            Leave Game
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    
     <!-- Spectator indicator -->
     <v-alert
       v-if="gameStore.isSpectator"
@@ -342,6 +375,7 @@ const errorMessage = ref('');
 const isDrawing = ref(false);
 const isEndingTurn = ref(false);
 const newSetDropZone = ref([]);
+const showLeaveDialog = ref(false);
 
 // Snackbar for invalid move notifications
 const showInvalidMoveAlert = ref(false);
@@ -698,6 +732,17 @@ async function endTurn() {
 async function handleDisconnect(action) {
   try {
     await gameStore.handleDisconnectedPlayer(action);
+  } catch (error) {
+    errorMessage.value = error.message;
+    showError.value = true;
+  }
+}
+
+async function leaveGame() {
+  showLeaveDialog.value = false;
+  try {
+    await gameStore.leaveGame();
+    router.push({ name: 'LobbyBrowser' });
   } catch (error) {
     errorMessage.value = error.message;
     showError.value = true;
