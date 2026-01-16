@@ -7,10 +7,11 @@ import { MediumStrategy } from './MediumStrategy.js';
 export class HardStrategy {
   constructor() {
     this.mediumStrategy = new MediumStrategy();
-    this.maxSearchDepth = 100; // How many moves ahead to consider
-    this.maxCombinations = 5000; // Limit combinations to prevent timeout
-    this.maxIterations = 300; // Maximum cascade iterations
-    this.explorationDepth = 200; // How deep to explore table rearrangements
+    // Tuned for ~30-45 second turns - thorough but not excessive
+    this.maxSearchDepth = 250;      // Starting moves to evaluate in look-ahead
+    this.maxCombinations = 75000;   // Set combinations to explore (main compute cost)
+    this.maxIterations = 500;       // Cascade play attempts per strategy
+    this.explorationDepth = 50;     // Depth per starting move (lower = faster, breadth > depth)
   }
 
   play(state) {
@@ -18,11 +19,17 @@ export class HardStrategy {
 
     // If no initial meld yet, try optimal initial meld strategy
     if (!hasPlayedInitialMeld) {
-      const initialMeldResult = this.findOptimalInitialMeld(playerTiles, rules);
+      const initialMeldResult = this.findOptimalInitialMeld(playerTiles, tableSets, rules);
       if (initialMeldResult) {
         return initialMeldResult;
       }
-      return this.mediumStrategy.play(state);
+      // Try medium strategy fallback (which uses easy strategy for initial melds)
+      const fallbackResult = this.mediumStrategy.play(state);
+      if (fallbackResult.action === 'play') {
+        return fallbackResult;
+      }
+      // If still no play, draw
+      return { action: 'draw' };
     }
 
     // Main strategy: Find the best possible play using look-ahead
@@ -956,13 +963,31 @@ export class HardStrategy {
   }
 
   // Find optimal initial meld
-  findOptimalInitialMeld(playerTiles, rules) {
+  findOptimalInitialMeld(playerTiles, tableSets, rules) {
     const minPoints = rules?.initialMeldPoints || 30;
+    
+    // Find all potential sets including those with jokers
     const allSets = this.findAllPotentialSets(playerTiles);
     const validSets = allSets.filter(s => isValidSet(s).valid);
 
+    // Also try to find sets we might have missed - specifically look for 30+ point single sets
+    const additionalSets = this.findHighValueSets(playerTiles, minPoints);
+    for (const set of additionalSets) {
+      if (isValidSet(set).valid && !validSets.some(vs => this.setsShareTiles(vs, set))) {
+        validSets.push(set);
+      }
+    }
+
     // Find combinations that meet the minimum points
-    const combos = this.findBestSetCombinations(validSets, playerTiles, 5);
+    const combos = this.findBestSetCombinations(validSets, playerTiles, 6);
+    
+    // Also add individual sets that meet the threshold on their own
+    for (const set of validSets) {
+      const points = this.calculateSetPoints(set);
+      if (points >= minPoints && this.tilesAvailable(set, playerTiles)) {
+        combos.push([set]);
+      }
+    }
     
     const validCombos = combos.filter(combo => {
       const points = combo.reduce((sum, set) => sum + this.calculateSetPoints(set), 0);
@@ -971,25 +996,115 @@ export class HardStrategy {
 
     if (validCombos.length === 0) return null;
 
-    // Pick the combo that plays the most tiles
-    const bestCombo = validCombos.reduce((best, curr) => {
-      const bestCount = best.reduce((sum, s) => sum + s.length, 0);
-      const currCount = curr.reduce((sum, s) => sum + s.length, 0);
-      return currCount > bestCount ? curr : best;
+    // Sort by tiles played (most first), then by points (highest first)
+    validCombos.sort((a, b) => {
+      const aCount = a.reduce((sum, s) => sum + s.length, 0);
+      const bCount = b.reduce((sum, s) => sum + s.length, 0);
+      if (bCount !== aCount) return bCount - aCount;
+      const aPoints = a.reduce((sum, set) => sum + this.calculateSetPoints(set), 0);
+      const bPoints = b.reduce((sum, set) => sum + this.calculateSetPoints(set), 0);
+      return bPoints - aPoints;
     });
+    
+    const bestCombo = validCombos[0];
 
     const usedIds = new Set();
     for (const set of bestCombo) {
       for (const tile of set) usedIds.add(tile.id);
     }
 
+    // Include existing table sets plus our new sets
+    const newTableSets = [...tableSets.map(s => [...s]), ...bestCombo];
+
     return {
       action: 'play',
-      tableSets: bestCombo,
+      tableSets: newTableSets,
       playerTiles: playerTiles.filter(t => !usedIds.has(t.id)),
       tilesPlayed: usedIds.size,
       playedInitialMeld: true
     };
+  }
+
+  // Find high-value sets that could meet initial meld on their own
+  findHighValueSets(playerTiles, minPoints) {
+    const sets = [];
+    const jokers = playerTiles.filter(t => t.isJoker);
+    const nonJokers = playerTiles.filter(t => !t.isJoker);
+    
+    // Look for runs of high numbers (e.g., 10-11-12-13)
+    for (const color of Object.values(TILE_COLORS)) {
+      const colorTiles = nonJokers
+        .filter(t => t.color === color)
+        .sort((a, b) => b.number - a.number); // Sort descending
+      
+      const byNum = {};
+      for (const t of colorTiles) {
+        if (!byNum[t.number]) byNum[t.number] = t;
+      }
+      
+      // Try to build runs starting from high numbers
+      for (let start = 13; start >= 10; start--) {
+        for (let len = 3; len <= 5; len++) {
+          const run = [];
+          let jokersUsed = 0;
+          let valid = true;
+          
+          for (let num = start; num > start - len && num >= 1; num--) {
+            if (byNum[num]) {
+              run.unshift(byNum[num]);
+            } else if (jokersUsed < jokers.length) {
+              run.unshift(jokers[jokersUsed]);
+              jokersUsed++;
+            } else {
+              valid = false;
+              break;
+            }
+          }
+          
+          if (valid && run.length >= 3 && isValidSet(run).valid) {
+            const points = this.calculateSetPoints(run);
+            if (points >= minPoints) {
+              sets.push(run);
+            }
+          }
+        }
+      }
+    }
+    
+    // Look for groups of high numbers
+    for (let num = 13; num >= 8; num--) {
+      const tiles = nonJokers.filter(t => t.number === num);
+      const uniqueColors = new Map();
+      for (const t of tiles) {
+        if (!uniqueColors.has(t.color)) uniqueColors.set(t.color, t);
+      }
+      
+      const uniqueTiles = Array.from(uniqueColors.values());
+      
+      // Try 3 or 4 tile groups
+      if (uniqueTiles.length >= 3) {
+        const group = uniqueTiles.slice(0, Math.min(4, uniqueTiles.length));
+        if (isValidSet(group).valid) {
+          const points = this.calculateSetPoints(group);
+          if (points >= minPoints) {
+            sets.push(group);
+          }
+        }
+      }
+      
+      // Try with joker
+      if (uniqueTiles.length >= 2 && jokers.length > 0) {
+        const group = [...uniqueTiles.slice(0, 2), jokers[0]];
+        if (isValidSet(group).valid) {
+          const points = this.calculateSetPoints(group);
+          if (points >= minPoints) {
+            sets.push(group);
+          }
+        }
+      }
+    }
+    
+    return sets;
   }
 
   calculateSetPoints(set) {
