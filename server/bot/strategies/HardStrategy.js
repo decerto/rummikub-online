@@ -7,11 +7,11 @@ import { MediumStrategy } from './MediumStrategy.js';
 export class HardStrategy {
   constructor() {
     this.mediumStrategy = new MediumStrategy();
-    // Tuned for ~30-45 second turns - thorough but not excessive
-    this.maxSearchDepth = 250;      // Starting moves to evaluate in look-ahead
-    this.maxCombinations = 75000;   // Set combinations to explore (main compute cost)
-    this.maxIterations = 500;       // Cascade play attempts per strategy
-    this.explorationDepth = 50;     // Depth per starting move (lower = faster, breadth > depth)
+    // Balanced for ~5-15 second turns - smart but responsive
+    this.maxSearchDepth = 200;      // Starting moves to evaluate in look-ahead
+    this.maxCombinations = 10000;    // Set combinations to explore (main compute cost)
+    this.maxIterations = 2000;       // Cascade play attempts per strategy
+    this.explorationDepth = 100;     // Depth per starting move (lower = faster, breadth > depth)
   }
 
   play(state) {
@@ -325,6 +325,60 @@ export class HardStrategy {
             const allTiles = [...combined[0], ...combined[1], ...combined[2]];
             if (this.tilesAvailable(allTiles, playerTiles)) {
               combos.push(combined);
+            }
+          }
+        }
+      }
+    }
+
+    // Quadruples (4 sets) - important for reaching 30 points with small sets
+    if (maxSets >= 4) {
+      for (let i = 0; i < validSets.length && combos.length < this.maxCombinations; i++) {
+        for (let j = i + 1; j < validSets.length && combos.length < this.maxCombinations; j++) {
+          if (this.setsShareTiles(validSets[i], validSets[j])) continue;
+          for (let k = j + 1; k < validSets.length && combos.length < this.maxCombinations; k++) {
+            if (this.setsShareTiles(validSets[i], validSets[k]) || 
+                this.setsShareTiles(validSets[j], validSets[k])) continue;
+            for (let l = k + 1; l < validSets.length && combos.length < this.maxCombinations; l++) {
+              if (!this.setsShareTiles(validSets[i], validSets[l]) &&
+                  !this.setsShareTiles(validSets[j], validSets[l]) &&
+                  !this.setsShareTiles(validSets[k], validSets[l])) {
+                const combined = [validSets[i], validSets[j], validSets[k], validSets[l]];
+                const allTiles = combined.flat();
+                if (this.tilesAvailable(allTiles, playerTiles)) {
+                  combos.push(combined);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Quintuples (5 sets) - for really spread out hands
+    if (maxSets >= 5) {
+      for (let i = 0; i < Math.min(validSets.length, 20) && combos.length < this.maxCombinations; i++) {
+        for (let j = i + 1; j < Math.min(validSets.length, 25) && combos.length < this.maxCombinations; j++) {
+          if (this.setsShareTiles(validSets[i], validSets[j])) continue;
+          for (let k = j + 1; k < Math.min(validSets.length, 30) && combos.length < this.maxCombinations; k++) {
+            if (this.setsShareTiles(validSets[i], validSets[k]) || 
+                this.setsShareTiles(validSets[j], validSets[k])) continue;
+            for (let l = k + 1; l < Math.min(validSets.length, 35) && combos.length < this.maxCombinations; l++) {
+              if (this.setsShareTiles(validSets[i], validSets[l]) ||
+                  this.setsShareTiles(validSets[j], validSets[l]) ||
+                  this.setsShareTiles(validSets[k], validSets[l])) continue;
+              for (let m = l + 1; m < validSets.length && combos.length < this.maxCombinations; m++) {
+                if (!this.setsShareTiles(validSets[i], validSets[m]) &&
+                    !this.setsShareTiles(validSets[j], validSets[m]) &&
+                    !this.setsShareTiles(validSets[k], validSets[m]) &&
+                    !this.setsShareTiles(validSets[l], validSets[m])) {
+                  const combined = [validSets[i], validSets[j], validSets[k], validSets[l], validSets[m]];
+                  const allTiles = combined.flat();
+                  if (this.tilesAvailable(allTiles, playerTiles)) {
+                    combos.push(combined);
+                  }
+                }
+              }
             }
           }
         }

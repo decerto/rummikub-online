@@ -120,6 +120,7 @@ export class EasyStrategy {
 
   findAllGroups(tiles) {
     const groups = [];
+    const jokers = tiles.filter(t => t.isJoker);
     const byNumber = {};
 
     for (const tile of tiles) {
@@ -142,11 +143,43 @@ export class EasyStrategy {
       }
 
       const colors = Object.keys(byColor);
+      
+      // Full groups (3 or 4 colors, no joker needed)
       if (colors.length >= 3) {
         // Generate all combinations of 3 or 4 colors
         this.generateGroupCombinations(byColor, colors, 3, [], groups);
         if (colors.length >= 4) {
           this.generateGroupCombinations(byColor, colors, 4, [], groups);
+        }
+      }
+      
+      // Groups with jokers
+      if (jokers.length >= 1 && colors.length >= 2) {
+        // 2 tiles + 1 joker = valid group of 3
+        const uniqueTiles = colors.map(c => byColor[c][0]);
+        for (let i = 0; i < uniqueTiles.length; i++) {
+          for (let j = i + 1; j < uniqueTiles.length; j++) {
+            const group = [uniqueTiles[i], uniqueTiles[j], jokers[0]];
+            if (isValidSet(group).valid) {
+              groups.push(group);
+            }
+            // Also try with 2 jokers for a group of 4
+            if (jokers.length >= 2) {
+              const group4 = [uniqueTiles[i], uniqueTiles[j], jokers[0], jokers[1]];
+              if (isValidSet(group4).valid) {
+                groups.push(group4);
+              }
+            }
+          }
+        }
+      }
+      
+      // 1 tile + 2 jokers = valid group of 3
+      if (jokers.length >= 2 && colors.length >= 1) {
+        const tile = byColor[colors[0]][0];
+        const group = [tile, jokers[0], jokers[1]];
+        if (isValidSet(group).valid) {
+          groups.push(group);
         }
       }
     }
@@ -171,6 +204,7 @@ export class EasyStrategy {
 
   findAllRuns(tiles) {
     const runs = [];
+    const jokers = tiles.filter(t => t.isJoker);
     const colors = Object.values(TILE_COLORS);
 
     for (const color of colors) {
@@ -181,14 +215,16 @@ export class EasyStrategy {
       // Remove duplicates (keep first of each number)
       const uniqueTiles = [];
       const seenNumbers = new Set();
+      const byNum = {};
       for (const tile of colorTiles) {
         if (!seenNumbers.has(tile.number)) {
           seenNumbers.add(tile.number);
           uniqueTiles.push(tile);
+          byNum[tile.number] = tile;
         }
       }
 
-      // Find all valid runs of length 3+
+      // Find all valid runs of length 3+ (no jokers)
       for (let start = 0; start < uniqueTiles.length - 2; start++) {
         for (let end = start + 2; end < uniqueTiles.length; end++) {
           const potentialRun = uniqueTiles.slice(start, end + 1);
@@ -204,6 +240,54 @@ export class EasyStrategy {
 
           if (isConsecutive && isValidSet(potentialRun).valid) {
             runs.push(potentialRun);
+          }
+        }
+      }
+      
+      // Runs with jokers filling gaps
+      if (jokers.length >= 1 && uniqueTiles.length >= 2) {
+        for (let i = 0; i < uniqueTiles.length - 1; i++) {
+          const gap = uniqueTiles[i + 1].number - uniqueTiles[i].number;
+          
+          // Gap of 2 - joker fills the middle
+          if (gap === 2) {
+            const run = [uniqueTiles[i], jokers[0], uniqueTiles[i + 1]];
+            if (isValidSet(run).valid) {
+              runs.push(run);
+            }
+          }
+          
+          // Consecutive pair - joker extends at either end
+          if (gap === 1) {
+            if (uniqueTiles[i].number > 1) {
+              const run = [jokers[0], uniqueTiles[i], uniqueTiles[i + 1]];
+              if (isValidSet(run).valid) {
+                runs.push(run);
+              }
+            }
+            if (uniqueTiles[i + 1].number < 13) {
+              const run = [uniqueTiles[i], uniqueTiles[i + 1], jokers[0]];
+              if (isValidSet(run).valid) {
+                runs.push(run);
+              }
+            }
+          }
+        }
+      }
+      
+      // Single tile + 2 jokers
+      if (jokers.length >= 2) {
+        for (const tile of uniqueTiles) {
+          let run;
+          if (tile.number === 1) {
+            run = [tile, jokers[0], jokers[1]]; // 1, J, J = 1,2,3
+          } else if (tile.number === 13) {
+            run = [jokers[0], jokers[1], tile]; // J, J, 13 = 11,12,13
+          } else {
+            run = [jokers[0], tile, jokers[1]]; // J, X, J = X-1, X, X+1
+          }
+          if (isValidSet(run).valid) {
+            runs.push(run);
           }
         }
       }
